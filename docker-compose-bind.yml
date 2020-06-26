@@ -1,0 +1,14 @@
+# The compose file for setting up a DNS
+# Web configuration is on https://localhost:10000
+# You must configure a master zone to kingdomhearts.com to your local IP
+
+bind:
+  image: sameersbn/bind:latest
+  dns: 127.0.0.1
+  environment:
+    - ROOT_PASSWORD=SecretPassword
+  ports:
+   - 10000:10000
+   - 53:53/udp
+  volumes:
+    - /srv/docker/bind:/data
