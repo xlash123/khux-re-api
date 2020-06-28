@@ -1,0 +1,32 @@
+The server always replies with this ret object:
+
+ret: {
+  	isMaintenance: false,
+    isKhuxMaintenance: false,
+    isDarkMaintenance: false,
+    isPhotonMaintenance: false,
+    isCommunicationMaintenance: false,
+    isAppReview: false,
+    isRetry: false,
+    sessionTO: false,
+    error: '',
+    versionApp: '4.0.0',
+    versionRes: 209,
+    versionResLow: 104,
+    versionDat: 76595,
+    darkVersionRes: 7,
+    darkVersionDat: 76818,
+    commonVersionDat: 76460,
+    viewUrl: '',
+    serverTime: '2020-06-28 05:15:43',
+    isNewDayPeriod: 0,
+    functionFlags: 628
+}
+
+The first few deal with maintenance. Unless isMaintenance is true, the rest are ignored.
+
+versionApp - The app version required to use the server
+
+viewUrl - idk. It doesn't do anything with replaced with a link
+
+serverTime - The time from the server

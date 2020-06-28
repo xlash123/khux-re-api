@@ -1,0 +1,53 @@
+-- Structure of ID --
+wxxxyyyy
+w 		- Always 5
+xxx		- Album #
+yyyy	- Level modifier (So far, the current Rank number. Adds 10 * (yyyy - 1) to base level)
+
+-- Enemy Album Numbers --
+1 - Shadow
+2 - (Crashed, expect Fat Bandit. Could be because assets aren't all loaded always)
+3 - Yellow Opera
+4 - Red Nocture
+5 - Blue Rhapsody
+6 - Soldier
+7 - (Crashed, likely related to asset loading)
+
+* Enemies have a base level
+
+-- Agrabah, Rank 1 -- (in order)
+50010001 - Shadow, lvl 1
+50030001 - Yellow Opera, lvl 3
+50040001 - Red Nocturn, lvl 3
+50050001 - Blue Rhapsody, lvl 3
+50060001 - Soldier, lvl 5
+50110001 - Possessor, lvl 6
+50210001 - Chomper Egg, lvl 7
+50080001 - Bandit, lvl 8
+50400001 - Sparkier, lvl 8
+50310001 - Aeroplane, lvl 9
+50340001 - Powerwild, lvl 10
+
+-- Agrabah, Rank 2 -- (in order)
+50010002 - Shadow, lvl 11
+50030002 - Yellow Opera, lvl 13
+50040002 - Red Nocturen, lvl 13
+50050002 - Blue Rhapsody, lvl 13
+50060002 - Soldier, lvl 15
+50110002 - Possessor, lvl 16
+50210002 - Chomper Egg, lvl 17
+50080002 - Bandit, lvl 18
+50400002 - Sparkier, lvl 18
+
+-- Wonderland, Rank 1 -- (randomly select)
+50210001 - Chomper Egg, lvl 7
+50010001 - Shadow, lvl 1
+50180001 - Dire Plant, lvl 9
+50110001 - Possssor, lvl 6
+50060001 - Soldier, lvl 5
+50210001 - Chomper Egg, lvl 7
+50350001 - Nimble Bee, lvl 10
+50400001 - Sparkier, lvl 8
+50050001 - Blue Rhapsody, lvl 3
+50040001 - Red Nocturn, lvl 3
+50130001 - Flower Rider, lvl 7

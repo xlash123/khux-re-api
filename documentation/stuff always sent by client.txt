@@ -1,0 +1,20 @@
+This is a sample of what the client always sends on each request (after login):
+
+{
+	ruv: 1919004959,
+	deviceType: 1,
+	systemVersion: '13.5.1',
+	appVersion: '4.0.0'
+}
+
+ruv - Random Unsigned Value
+	+ Is just a random unsigned value
+	+ Likely prevents duplicate requests from being processed
+	+ When injected with random numbers, no requests were dropped
+
+deviceType - Type of device
+	+ Probably 1 = ios, and others like it
+
+systemVersion - Operating system version
+
+appVersion - Application version
