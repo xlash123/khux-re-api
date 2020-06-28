@@ -17,10 +17,19 @@ let sharedSecurityKey;
 
 // Use this function to make modifications to a body JSON object
 function doBodyMod(body) {
-	// Sample moficiation
+	// Sample moficiations
 	// if (body.tickerText) {
 	// 	body.tickerText = 'This is a ticker injection';
 	// }
+	// if (body.popUpViewUrl) {
+	// 	body.popUpViewUrl = ['https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'https://knowyourmeme.com/memes/buff-riku'];
+	// }
+}
+
+// Modifies the JSON payload that goes to the server
+// VERY DANGEROUS! If used improperly, you could probably get a ban
+function doClientBodyMod(body) {
+
 }
 
 // Takes a body and rezips/reencodes it if necessary
@@ -32,6 +41,7 @@ function repackageBody(body, isGzip, isEncJson) {
 	} else if (isGzip) {
 		return gzipSync(JSON.stringify(body));
 	}
+	return body;
 }
 
 // SSL specifications for HTTPS
@@ -50,19 +60,36 @@ function decryptJson(encodedB64, secretKey) {
 	return retStr.substring(0, retStr.lastIndexOf('}') + 1);
 }
 
+// Decrypts a user-sent message
+function decryptUri(encoded, secretKey) {
+	const urlSearch = new URLSearchParams(encoded);
+	const v = urlSearch.get('v');
+	if (v)
+		return decryptJson(v, secretKey);
+	return encoded;
+}
+
+// Encrypts a JSON payload to go in the url
+function encryptUri(obj, secretKey) {
+	return 'v=' + encodeURIComponent(encryptJson(obj, secretKey, '\4'));
+}
+
 // Returns an encrypted version of this object
-function encryptJson(obj, secretKey) {
-	let jsonStr = JSON.stringify(obj);
+function encryptJson(obj, secretKey, padChar = '\0') {
+	let jsonStr = aes.utils.utf8.toBytes(JSON.stringify(obj));
 	const modLen = jsonStr.length % 16;
 	// Pad out string to multiple of 16 in order to encode
 	if (modLen > 0) {
-		console.log(modLen);
-		jsonStr += '\0'.repeat(16 - modLen);
+		const padding = aes.utils.utf8.toBytes(padChar.repeat(16 - modLen));
+		const newArr = new Uint8Array(jsonStr.length + padding.length);
+		newArr.set(jsonStr);
+		newArr.set(padding, jsonStr.length);
+		jsonStr = newArr;
 	}
 	// Encrypt
 	const keyBytes = Buffer.from(secretKey);
 	const aesCbc = new aes.ModeOfOperation.cbc(keyBytes);
-	const encJson = aesCbc.encrypt(aes.utils.utf8.toBytes(jsonStr));
+	const encJson = aesCbc.encrypt(jsonStr);
 	// Convert to b64
 	return Base64.fromUint8Array(encJson);
 }
@@ -135,23 +162,52 @@ const server = https.createServer(ssl, (req, res) => {
 			res.end();
 		})
 	});
+
+	// The payload to send
 	let body = '';
 	Object.keys(req.headers).forEach((h) => {
 		pReq.setHeader(h, req.headers[h]);
 	});
 	req.on('data', (chunk) => {
 		body += chunk.toString();
-		pReq.write(chunk);
+		pReq.write(body);
 	});
 	req.on('end', () => {
+		// The payload to send that exists in the url
+		let vBody;
+		if (req.method === 'GET' && sharedSecurityKey) {
+			vBody = decryptUri(req.url, sharedSecurityKey);
+		}
+		body = decryptUri(body, sharedSecurityKey);
+
+		// Attempt to JSON parse the body(ies)
 		try {
 			body = JSON.parse(body);
 		} catch (e) {}
+		try {
+			vBody = JSON.parse(vBody);
+		} catch (e) {}
+
+		// This allows for modification of the payload send to the server
+		// In some cases, it crashes, so this is still to be worked on
+
+		// if (typeof body === 'object' && sharedSecurityKey) {
+		// 	doClientBodyMod(body);
+		// 	const newBody = encryptUri(body, sharedSecurityKey);
+		// 	pReq.setHeader('content-length', newBody.length);
+		// 	pReq.write(newBody);
+		// } else if (typeof body === 'object') {
+		// 	pReq.write(JSON.stringify(body));
+		// } else {
+		// 	pReq.write(body);
+		// }
+
 		log(true, {
 			url: req.headers.host + req.url,
 			method: req.method,
 			headers: req.headers,
-			body: body
+			body: body,
+			vBody
 		});
 		// Send out the proxied request
 		pReq.end();
