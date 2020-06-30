@@ -3,6 +3,7 @@ const fs = require('fs');
 const aes = require('aes-js');
 const { b64 } = require('js-base64');
 const { gunzipSync, gzipSync } = require('zlib');
+const readline = require('readline');
 
 // Some certificate stuff. Might not be necessary, but it doesn't hurt
 https.globalAgent.options.ca = require('ssl-root-cas/latest').create();
@@ -10,6 +11,11 @@ https.globalAgent.options.ca = require('ssl-root-cas/latest').create();
 const port = 443;
 
 let responseCounter = 0;
+
+// Allows the server messages to be written directly to the client without storing in RAM first
+//   This disables any form of modifications that could be made,
+// but it will also write all the bodies to disk exactly how it is received
+let seamlessLog = false;
 
 // This is the AES-256 key that encrypts the JSON
 // It is fetched during a session grab
@@ -117,46 +123,61 @@ const server = https.createServer(ssl, (req, res) => {
 
 		// The body of the response. To be filled
 		let body;
+
+		// If activated, the log file to write to
+		let logFile;
+		if (seamlessLog) {
+			logFile = fs.openSync(`packets/${responseCounter++}.bin`, 'w');
+		}
 		pRes.on('data', (chunk) => {
-			if (body === undefined) {
-				body = Buffer.from(chunk);
+			if (seamlessLog) {
+				res.write(chunk);
+				fs.writeSync(logFile, chunk);
 			} else {
-				body = Buffer.concat([body, chunk]);
+				if (body === undefined) {
+					body = Buffer.from(chunk);
+				} else {
+					body = Buffer.concat([body, chunk]);
+				}
 			}
 		});
 		pRes.on('end', () => {
-			if (isGzip) {
-				body = gunzipSync(body).toString();
-				if (isEncJson) {
-					body = decryptJson(body, sharedSecurityKey);
-				}
-			}
-
-			// Attempt to parse the JSON
-			try {
-				body = JSON.parse(body.toString());
-			} catch (e) {}
-
-			if (typeof body === 'object') {
-				// Log the AES key when we get it
-				if (body.sharedSecurityKey) {
-					sharedSecurityKey = body.sharedSecurityKey;
+			if (!seamlessLog) {
+				if (isGzip) {
+					body = gunzipSync(body).toString();
+					if (isEncJson) {
+						body = decryptJson(body, sharedSecurityKey);
+					}
 				}
 
-				// This will allow custom manipulation of the body
-				doBodyMod(body);
-			}
+				// Attempt to parse the JSON
+				try {
+					body = JSON.parse(body.toString());
+				} catch (e) {}
 
-			if (typeof body === 'object') {
-				res.write(repackageBody(body, isGzip, isEncJson));
+				if (typeof body === 'object') {
+					// Log the AES key when we get it
+					if (body.sharedSecurityKey) {
+						sharedSecurityKey = body.sharedSecurityKey;
+					}
+
+					// This will allow custom manipulation of the body
+					doBodyMod(body);
+				}
+
+				if (typeof body === 'object') {
+					res.write(repackageBody(body, isGzip, isEncJson));
+				} else {
+					res.write(gzipSync(body));
+				}
 			} else {
-				res.write(gzipSync(body));
+				fs.closeSync(logFile);
 			}
 
 			log(false, {
 				status: res.statusCode,
 				headers: res.getHeaders(),
-				body: body
+				body: seamlessLog ? 'logged to disk' : body
 			});
 			// Finish proxy route
 			res.end();
@@ -225,6 +246,19 @@ function log(isToSE, obj) {
 	console.dir(obj, { depth: null });
 	console.log('=======');
 }
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+  terminal: false
+});
+
+rl.on('line', (line) => {
+	if (line.startsWith('seamless')) {
+		seamlessLog = !seamlessLog;
+		console.log('Seamless mode is ' + (seamlessLog ? 'on' : 'off'));
+	}
+});
 
 server.listen(port);
 
