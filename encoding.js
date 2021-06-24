@@ -1,5 +1,5 @@
 const aes = require('aes-js');
-const Buffer = require('buffer');
+const { Buffer } = require('buffer');
 const { Base64 } = require('js-base64');
 
 // Returns a decrypted JSON object
@@ -23,7 +23,7 @@ function decryptUri(encoded, secretKey) {
 
 // Encrypts a JSON payload to go in the url
 function encryptUri(obj, secretKey) {
-	return 'v=' + encodeURIComponent(encryptJson(obj, secretKey, '\4'));
+	return 'v=' + encodeURI(encryptJson(obj, secretKey, '\4'));
 }
 
 // Returns an encrypted version of this object

@@ -5,11 +5,13 @@ const readline = require('readline');
 
 const { launchMitm } = require('./mitm');
 const { decryptUri } = require('./encoding');
+const { login } = require('./client');
 
 const optDefs = [
 	{ name: 'mitm', type: Boolean },
 	{ name: 'decode', type: Boolean },
 	{ name: 'key', type: String },
+	{ name: 'client', type: Boolean },
 ];
 
 const opts = commandLineArgs(optDefs);
@@ -18,6 +20,8 @@ if (opts.mitm) {
 } else if (opts.decode) {
 	console.log(opts);
 	bulkDecode(opts.key);
+} else if (opts.client) {
+	login();
 }
 
 async function bulkDecode(key) {
