@@ -1,7 +1,7 @@
 const https = require('https');
 const fs = require('fs');
 const process = require('process');
-const Buffer = require('buffer');
+const { Buffer } = require('buffer');
 const { gunzipSync, gzipSync } = require('zlib');
 const readline = require('readline');
 
@@ -72,16 +72,16 @@ const ssl = {
 }
 
 function launchMitm() {
-    // Some certificate stuff. Might not be necessary, but it doesn't hurt
-    https.globalAgent.options.ca = require('ssl-root-cas/latest').create();
+    https.globalAgent.options.ca = require('ssl-root-cas').create();
     // The main proxy server
     const server = https.createServer(ssl, (req, res) => {
+        console.log('Connection');
         // Options to route the initial request to the actual KH server
         const proxyOpts = {
             host: req.headers.host,
             port: 443,
             path: req.url,
-            method: req.method
+            method: req.method,
         };
         // Create proxy request to kh.com
         const pReq = https.request(proxyOpts, (pRes) => {
@@ -108,6 +108,7 @@ function launchMitm() {
                     res.write(chunk);
                     fs.writeSync(logFile, chunk);
                 } else {
+                    res.write(chunk);
                     if (body === undefined) {
                         body = Buffer.from(chunk);
                     } else {
@@ -115,36 +116,33 @@ function launchMitm() {
                     }
                 }
             });
+            let modBody;
             pRes.on('end', () => {
                 if (!seamlessLog) {
+                    modBody = body;
                     if (isGzip) {
-                        body = gunzipSync(body).toString();
-                        if (isEncJson) {
-                            body = decryptJson(body, sharedSecurityKey);
-                        }
+                        modBody = gunzipSync(modBody).toString();
+                    }
+                    if (isEncJson) {
+                        modBody = decryptJson(modBody, sharedSecurityKey);
                     }
 
                     // Attempt to parse the JSON
                     try {
-                        body = JSON.parse(body.toString());
+                        modBody = JSON.parse(modBody.toString());
                     } catch (e) {
                         console.log(e);
                     }
 
-                    if (typeof body === 'object') {
+                    if (typeof modBody === 'object') {
+
                         // Log the AES key when we get it
-                        if (body.sharedSecurityKey) {
-                            sharedSecurityKey = body.sharedSecurityKey;
+                        if (modBody.sharedSecurityKey) {
+                            sharedSecurityKey = modBody.sharedSecurityKey;
                         }
 
                         // This will allow custom manipulation of the body
-                        doBodyMod(body);
-                    }
-
-                    if (typeof body === 'object') {
-                        res.write(repackageBody(body, isGzip, isEncJson));
-                    } else {
-                        res.write(gzipSync(body));
+                        doBodyMod(modBody);
                     }
                 } else {
                     fs.closeSync(logFile);
@@ -153,7 +151,7 @@ function launchMitm() {
                 log(false, {
                     status: res.statusCode,
                     headers: res.getHeaders(),
-                    body: seamlessLog ? 'logged to disk' : body
+                    body: seamlessLog ? 'logged to disk' : modBody,
                 });
                 // Finish proxy route
                 res.end();
@@ -175,7 +173,9 @@ function launchMitm() {
             if (req.method === 'GET' && sharedSecurityKey) {
                 vBody = decryptUri(req.url, sharedSecurityKey);
             }
-            body = decryptUri(body, sharedSecurityKey);
+            if (sharedSecurityKey) {
+                body = decryptUri(body, sharedSecurityKey);
+            }
 
             // Attempt to JSON parse the body(ies)
             try {

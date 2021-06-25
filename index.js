@@ -4,8 +4,8 @@ const commandLineArgs = require('command-line-args');
 const readline = require('readline');
 
 const { launchMitm } = require('./mitm');
-const { decryptUri } = require('./encoding');
-const { login } = require('./client');
+const { decryptUri, decryptJson } = require('./encoding');
+const { KHUXClient } = require('./client');
 
 const optDefs = [
 	{ name: 'mitm', type: Boolean },
@@ -21,7 +21,7 @@ if (opts.mitm) {
 	console.log(opts);
 	bulkDecode(opts.key);
 } else if (opts.client) {
-	login();
+	new KHUXClient();
 }
 
 async function bulkDecode(key) {
@@ -38,7 +38,12 @@ async function bulkDecode(key) {
 	}
 
 	rl.on('line', (line) => {
-		const payload = decryptUri(line, sharedKey);
+		let payload;
+		if (line.startsWith('v=')) {
+			payload = decryptUri(line, sharedKey);
+		} else {
+			payload = decryptJson(line, sharedKey);
+		}
 		try {
 			const parsed = JSON.parse(payload);
 			console.log(parsed);
