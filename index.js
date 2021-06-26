@@ -21,7 +21,11 @@ if (opts.mitm) {
 	console.log(opts);
 	bulkDecode(opts.key);
 } else if (opts.client) {
-	new KHUXClient();
+	const client = new KHUXClient();
+	client.login().then(() => {
+		client.getSystemMaster();
+		client.getPetRecover();
+	});
 }
 
 async function bulkDecode(key) {

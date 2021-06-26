@@ -48,10 +48,9 @@ class KHUXClient {
 
     userData;
 
+    isLoggedIn = false;
+
     constructor() {
-        this.login().then(() => {
-            this.initialStatus();
-        });
     }
     
     packCookies() {
@@ -72,11 +71,11 @@ class KHUXClient {
     }
 
     encryptUri(obj) {
-        return encryptUri(this.getSelfStatus(), this.sharedSecurityKey);
+        return encryptUri(obj, this.sharedSecurityKey);
     }
 
     encryptJson(obj) {
-        return encryptJson(this.getSelfStatus(), this.sharedSecurityKey);
+        return encryptJson(obj, this.sharedSecurityKey);
     }
 
     async performRequest(params, postData) {
@@ -84,6 +83,7 @@ class KHUXClient {
             const req = https.request(params, (res) => {
                 const isGzip = res.headers['content-encoding'] === 'gzip';
                 const isEncJson = res.headers['content-type'].includes('application/encoded-json');
+                const isText = res.headers['content-type'].includes('text/html');
                 let body;
         
                 let cookies = [];
@@ -102,13 +102,15 @@ class KHUXClient {
                     if (isGzip) {
                         body = gunzipSync(body).toString();
                     }
-                    if (isEncJson) {
+                    if (isText) {
+                        body = body.toString();
+                    } else if (isEncJson) {
                         body = decryptJson(body, this.sharedSecurityKey);
                     }
                     try {
                         body = JSON.parse(body.toString());
                     } catch (e) {
-                        console.error(e);
+                        // Not a JSON element
                     }
                     const response = {
                         body,
@@ -242,6 +244,10 @@ class KHUXClient {
         this.weirdNameCookie = getWeirdCookie(khuxLoginRes.cookies);
         this.nodeCookies = getNodeCookies(khuxLoginRes.cookies);
 
+        await this.initialStatus();
+
+        this.isLoggedIn = true;
+
         return khuxLoginRes;
     }
 
@@ -297,7 +303,23 @@ class KHUXClient {
             host,
             port,
             method: 'GET',
-            path: `/user/start?m=1&i=${this.userData.user.id}&${this.encryptUri(this.getSelfStatus())}`,
+            path: `/user/start?m=1&i=${this.userData.user.userId}&${this.encryptUri(this.getSelfStatus())}`,
+            headers: {
+                accept: '*/*',
+                'accept-encoding': 'deflate, gzip',
+                cookie: this.packCookies(),
+                'x-sqex-hole-nsid': this.nativeSessionId,
+                'x-sqex-hole-retry': '0',
+            },
+        });                
+    }
+
+    async getPetRecover() {
+        return this.performRequest({
+            host,
+            port,
+            method: 'GET',
+            path: `pet/expedition/recover?m=1&i=${this.userData.user.userId}&${this.encryptUri(this.getSelfStatus())}`,
             headers: {
                 accept: '*/*',
                 'accept-encoding': 'deflate, gzip',
@@ -306,12 +328,60 @@ class KHUXClient {
                 'x-sqex-hole-retry': '0',
             },
         });
+    }
 
-        const userChatRes = await this.performRequest({
+    async getSystemMaster() {
+        const resourceSizeBody = this.encryptJson({
+            ...this.getSelfStatus(),
+            resoMode: 0,
+            masterRevision: 0,
+            resourceRevision: 0,
+            commonMasterRevision: 0,
+            evResourceIds: [],
+        });
+        const resourceSizeRes = this.performRequest({
+            host,
+            port,
+            method: 'PUT',
+            path: `/system/resourcesize/20200423?m=1&i=${this.userData.user.userId}`,
+            headers: {
+                accept: '*/*',
+                'accept-encoding': 'deflate, gzip',
+                cookie: this.packCookies(),
+                'x-sqex-hole-nsid': this.nativeSessionId,
+                'x-sqex-hole-retry': '0',
+                'content-length': resourceSizeBody.length,
+                'content-type': 'application/x-www-form-urlencoded'
+            },
+        }, resourceSizeBody);
+
+        const mastersBody = this.encryptUri({
+            ...this.getSelfStatus(),
+            revision: 0,
+            commonRevision: 0,
+        });
+
+       return this.performRequest({
+           host,
+           port,
+           method: 'GET',
+           path: `/system/master/20200423?m=1&i=${this.userData.user.userId}&${mastersBody}`,
+           headers: {
+               accept: '*/*',
+               'accept-encoding': 'deflate, gzip',
+               cookie: this.packCookies(),
+               'x-sqex-hole-nsid': this.nativeSessionId,
+               'x-sqex-hole-retry': '0',
+           },
+       });
+    }
+    
+    async getChatData() {
+        return this.performRequest({
             host,
             port,
             method: 'GET',
-            path: `/user/chat?m=1&i=${this.userData.user.id}&${this.encryptUri(this.getSelfStatus())}`,
+            path: `/user/chat?m=1&i=${this.userData.user.userId}&${this.encryptUri(this.getSelfStatus())}`,
             headers: {
                 accept: '*/*',
                 'accept-encoding': 'deflate, gzip',
@@ -320,12 +390,14 @@ class KHUXClient {
                 'x-sqex-hole-retry': '0',
             },
         });
-
-        const partyRes = await this.performRequest({
+    }
+    
+    async getParty() {
+        return this.performRequest({
             host,
             port,
             method: 'GET',
-            path: `/user/chat?m=1&i=${this.userData.user.id}&${this.encryptUri(this.getSelfStatus())}`,
+            path: `/user/chat?m=1&i=${this.userData.user.userId}&${this.encryptUri(this.getSelfStatus())}`,
             headers: {
                 accept: '*/*',
                 'accept-encoding': 'deflate, gzip',
@@ -334,12 +406,14 @@ class KHUXClient {
                 'x-sqex-hole-retry': '0',
             },
         });
+    }
 
-        const stoneRes = await this.performRequest({
+    async getJewels() {
+        return this.performRequest({
             host,
             port,
             method: 'GET',
-            path: `/user/stone?m=1&i=${this.userData.user.id}&${this.encryptUri(this.getSelfStatus())}`,
+            path: `/user/stone?m=1&i=${this.userData.user.userId}&${this.encryptUri(this.getSelfStatus())}`,
             headers: {
                 accept: '*/*',
                 'accept-encoding': 'deflate, gzip',
@@ -347,7 +421,7 @@ class KHUXClient {
                 'x-sqex-hole-nsid': this.nativeSessionId,
                 'x-sqex-hole-retry': '0',
             },
-        })
+        });
     }
 
     async getUserData() {

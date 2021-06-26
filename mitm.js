@@ -65,13 +65,12 @@ function log(isToSE, obj) {
 	console.log('=======');
 }
 
-// SSL specifications for HTTPS
-const ssl = {
-	key: fs.readFileSync('key.pem', 'utf8'),
-    cert: fs.readFileSync('cert.pem', 'utf8')
-}
-
 function launchMitm() {
+    // SSL specifications for HTTPS
+    const ssl = {
+        key: fs.readFileSync('key.pem', 'utf8'),
+        cert: fs.readFileSync('cert.pem', 'utf8')
+    }
     https.globalAgent.options.ca = require('ssl-root-cas').create();
     // The main proxy server
     const server = https.createServer(ssl, (req, res) => {
