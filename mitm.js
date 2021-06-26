@@ -74,7 +74,6 @@ function launchMitm() {
     https.globalAgent.options.ca = require('ssl-root-cas').create();
     // The main proxy server
     const server = https.createServer(ssl, (req, res) => {
-        console.log('Connection');
         // Options to route the initial request to the actual KH server
         const proxyOpts = {
             host: req.headers.host,
@@ -167,6 +166,7 @@ function launchMitm() {
             pReq.write(body);
         });
         req.on('end', () => {
+            const rawBody = body;
             // The payload to send that exists in the url
             let vBody;
             if (req.method === 'GET' && sharedSecurityKey) {
@@ -182,6 +182,7 @@ function launchMitm() {
             } catch (e) {
                 console.log(e);
             }
+            const rawVBody = vBody;
             try {
                 vBody = JSON.parse(vBody);
             } catch (e) {
@@ -206,8 +207,10 @@ function launchMitm() {
                 url: req.headers.host + req.url,
                 method: req.method,
                 headers: req.headers,
-                body: body,
-                vBody
+                body,
+                rawBody,
+                vBody,
+                rawVBody,
             });
             // Send out the proxied request
             pReq.end();

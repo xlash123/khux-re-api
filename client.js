@@ -1,7 +1,7 @@
 const https = require('https');
 const { gunzipSync } = require('zlib');
 const { Buffer } = require('buffer');
-const { decryptJson, encryptUri, encryptJson } = require('./encoding');
+const { decryptJson, encryptUri, encryptJson, decryptRaw } = require('./encoding');
 
 const DEBUG = true;
 
@@ -16,19 +16,20 @@ const uuid = '950f4192-f28a-469b-b602-dac828f0548a';
 // Parses 'cookie_user_session_code' from cookies array
 function getUserSessionCode(cookies) {
     if (Array.isArray(cookies)) {
-        return cookies.find(c => c.startsWith('cookie_user_session_code=')).split(';')[0].substring('cookie_user_session_code='.length);
+
+        return cookies.find(c => c.startsWith('cookie_user_session_code='))?.split(';')[0]?.substring('cookie_user_session_code='.length);
     }
 
-    return '';
+    return false;
 }
 
 // Gets the cookie called 'nAJW839RbEHrfm6M'
 function getWeirdCookie(cookies) {
     if (Array.isArray(cookies)) {
-        return cookies.find(c => c.startsWith('nAJW839RbEHrfm6M=')).split(';')[0].substring('nAJW839RbEHrfm6M='.length);
+        return cookies.find(c => c.startsWith('nAJW839RbEHrfm6M='))?.split(';')[0]?.substring('nAJW839RbEHrfm6M='.length);
     }
 
-    return [];
+    return false;
 }
 
 function getNodeCookies(cookies) {
@@ -36,7 +37,7 @@ function getNodeCookies(cookies) {
         return cookies.filter(c => c.startsWith('nodeNo')).map(c => c.split(';')[0]);
     }
 
-    return [];
+    return false;
 }
 
 class KHUXClient {
@@ -60,6 +61,24 @@ class KHUXClient {
         ].concat(this.nodeCookies);
     }
 
+    // Parse through cookies and update them locally
+    setCommonCookies(cookies) {
+        const newUserSession = getUserSessionCode(cookies);
+        if (newUserSession) {
+            this.cookieUserSessionCode = newUserSession;
+        }
+
+        const newWeirdCookie = getWeirdCookie(cookies);
+        if (newWeirdCookie) {
+            this.weirdNameCookie = newWeirdCookie;
+        }
+
+        const newNodes = getNodeCookies(cookies);
+        if (newNodes) {
+            this.nodeCookies = newNodes;
+        }
+    }
+
     // Returns that payload that the client always seems to send
     getSelfStatus() {
         return {
@@ -70,8 +89,8 @@ class KHUXClient {
         }
     }
 
-    encryptUri(obj) {
-        return encryptUri(obj, this.sharedSecurityKey);
+    encryptUri(obj, pad = '\x04') {
+        return encryptUri(obj, this.sharedSecurityKey, pad);
     }
 
     encryptJson(obj) {
@@ -117,6 +136,7 @@ class KHUXClient {
                         headers: res.headers,
                         cookies,
                     };
+                    this.setCommonCookies(cookies);
                     if (DEBUG) {
                         console.dir({
                             params,
@@ -244,7 +264,7 @@ class KHUXClient {
         this.weirdNameCookie = getWeirdCookie(khuxLoginRes.cookies);
         this.nodeCookies = getNodeCookies(khuxLoginRes.cookies);
 
-        await this.initialStatus();
+        // await this.initialStatus();
 
         this.isLoggedIn = true;
 
@@ -331,49 +351,89 @@ class KHUXClient {
     }
 
     async getSystemMaster() {
-        const resourceSizeBody = this.encryptJson({
-            ...this.getSelfStatus(),
-            resoMode: 0,
-            masterRevision: 0,
-            resourceRevision: 0,
-            commonMasterRevision: 0,
-            evResourceIds: [],
-        });
-        const resourceSizeRes = this.performRequest({
+        const tutorialStatusRes = await this.performRequest({
             host,
             port,
-            method: 'PUT',
-            path: `/system/resourcesize/20200423?m=1&i=${this.userData.user.userId}`,
+            method: 'GET',
+            path: '/tutorial/status?m=1&' + this.encryptUri(this.getSelfStatus()),
             headers: {
                 accept: '*/*',
                 'accept-encoding': 'deflate, gzip',
                 cookie: this.packCookies(),
                 'x-sqex-hole-nsid': this.nativeSessionId,
                 'x-sqex-hole-retry': '0',
-                'content-length': resourceSizeBody.length,
-                'content-type': 'application/x-www-form-urlencoded'
             },
-        }, resourceSizeBody);
-
-        const mastersBody = this.encryptUri({
-            ...this.getSelfStatus(),
-            revision: 0,
-            commonRevision: 0,
         });
 
-       return this.performRequest({
-           host,
-           port,
-           method: 'GET',
-           path: `/system/master/20200423?m=1&i=${this.userData.user.userId}&${mastersBody}`,
-           headers: {
-               accept: '*/*',
-               'accept-encoding': 'deflate, gzip',
-               cookie: this.packCookies(),
-               'x-sqex-hole-nsid': this.nativeSessionId,
-               'x-sqex-hole-retry': '0',
-           },
-       });
+        const resourceSizeBody1 = this.encryptUri({
+            resoMode: 0,
+            masterRevision: 0,
+            resourceRevision: 0,
+            commonMasterRevision: 0,
+            evResourceIds: [],
+            ...this.getSelfStatus(),
+        });
+        const resourceSizeRes1 = await this.performRequest({
+            host,
+            port,
+            method: 'PUT',
+            path: `/system/resourcesize/20200423?m=1`,
+            headers: {
+                host: 'api-s.sp.kingdomhearts.com',
+                accept: '*/*',
+                'accept-encoding': 'deflate, gzip',
+                cookie: this.packCookies(),
+                'x-sqex-hole-nsid': this.nativeSessionId,
+                'x-sqex-hole-retry': '0',
+                'content-length': resourceSizeBody1.length,
+                'content-type': 'application/x-www-form-urlencoded'
+            },
+        }, resourceSizeBody1);
+
+        const resourceSizeBody2 = this.encryptUri({
+            resoMode: 1,
+            masterRevision: 0,
+            resourceRevision: 0,
+            commonMasterRevision: 0,
+            evResourceIds: [],
+            ...this.getSelfStatus(),
+        });
+        const resourceSizeRes2 = await this.performRequest({
+            host,
+            port,
+            method: 'PUT',
+            path: `/system/resourcesize/20200423?m=1`,
+            headers: {
+                host: 'api-s.sp.kingdomhearts.com',
+                accept: '*/*',
+                'accept-encoding': 'deflate, gzip',
+                cookie: this.packCookies(),
+                'x-sqex-hole-nsid': this.nativeSessionId,
+                'x-sqex-hole-retry': '0',
+                'content-length': resourceSizeBody2.length,
+                'content-type': 'application/x-www-form-urlencoded'
+            },
+        }, resourceSizeBody2);
+
+        const mastersBody = this.encryptUri({
+            revision: 0,
+            commonRevision: 0,
+            ...this.getSelfStatus(),
+        }, '\x05');
+        return this.performRequest({
+            host,
+            port,
+            method: 'GET',
+            path: `/system/master/20200423?m=1&${mastersBody}`,
+            headers: {
+                host: 'api-s.sp.kingdomhearts.com',
+                accept: '*/*',
+                'accept-encoding': 'deflate, gzip',
+                cookie: this.packCookies().join('; '),
+                'x-sqex-hole-nsid': this.nativeSessionId,
+                'x-sqex-hole-retry': '0',
+            },
+        }, '');
     }
     
     async getChatData() {

@@ -2,13 +2,18 @@ const aes = require('aes-js');
 const { Buffer } = require('buffer');
 const { Base64 } = require('js-base64');
 
-// Returns a decrypted JSON object
-function decryptJson(encodedB64, secretKey) {
+function decryptRaw(encodedB64, secretKey) {
 	const keyBytes = Buffer.from(secretKey);
 	const aesCbc = new aes.ModeOfOperation.cbc(keyBytes);
 	const decodedBuffer = Buffer.from(Base64.atob(encodedB64), 'binary');
 	const decryptedBytes = aesCbc.decrypt(decodedBuffer);
 	const retStr = aes.utils.utf8.fromBytes(decryptedBytes);
+	return retStr;
+}
+
+// Returns a decrypted JSON object
+function decryptJson(encodedB64, secretKey) {
+	const retStr = decryptRaw(encodedB64, secretKey);
 	return retStr.substring(0, retStr.lastIndexOf('}') + 1);
 }
 
@@ -22,12 +27,12 @@ function decryptUri(encoded, secretKey) {
 }
 
 // Encrypts a JSON payload to go in the url
-function encryptUri(obj, secretKey) {
-	return 'v=' + encodeURIComponent(encryptJson(obj, secretKey, '\4'));
+function encryptUri(obj, secretKey, pad = '\x04') {
+	return 'v=' + encodeURIComponent(encryptJson(obj, secretKey, pad));
 }
 
 // Returns an encrypted version of this object
-function encryptJson(obj, secretKey, padChar = '\0') {
+function encryptJson(obj, secretKey, padChar = '\x00') {
 	let jsonStr = aes.utils.utf8.toBytes(JSON.stringify(obj));
 	const modLen = jsonStr.length % 16;
 	// Pad out string to multiple of 16 in order to encode
@@ -51,4 +56,5 @@ module.exports = {
     decryptUri,
     encryptUri,
     encryptJson,
+	decryptRaw,
 };

@@ -24,7 +24,6 @@ if (opts.mitm) {
 	const client = new KHUXClient();
 	client.login().then(() => {
 		client.getSystemMaster();
-		client.getPetRecover();
 	});
 }
 
