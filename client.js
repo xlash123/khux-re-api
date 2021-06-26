@@ -351,75 +351,75 @@ class KHUXClient {
     }
 
     async getSystemMaster() {
-        const tutorialStatusRes = await this.performRequest({
-            host,
-            port,
-            method: 'GET',
-            path: '/tutorial/status?m=1&' + this.encryptUri(this.getSelfStatus()),
-            headers: {
-                accept: '*/*',
-                'accept-encoding': 'deflate, gzip',
-                cookie: this.packCookies(),
-                'x-sqex-hole-nsid': this.nativeSessionId,
-                'x-sqex-hole-retry': '0',
-            },
-        });
+        // const tutorialStatusRes = await this.performRequest({
+        //     host,
+        //     port,
+        //     method: 'GET',
+        //     path: '/tutorial/status?m=1&' + this.encryptUri(this.getSelfStatus()),
+        //     headers: {
+        //         accept: '*/*',
+        //         'accept-encoding': 'deflate, gzip',
+        //         cookie: this.packCookies(),
+        //         'x-sqex-hole-nsid': this.nativeSessionId,
+        //         'x-sqex-hole-retry': '0',
+        //     },
+        // });
 
-        const resourceSizeBody1 = this.encryptUri({
-            resoMode: 0,
-            masterRevision: 0,
-            resourceRevision: 0,
-            commonMasterRevision: 0,
-            evResourceIds: [],
-            ...this.getSelfStatus(),
-        });
-        const resourceSizeRes1 = await this.performRequest({
-            host,
-            port,
-            method: 'PUT',
-            path: `/system/resourcesize/20200423?m=1`,
-            headers: {
-                host: 'api-s.sp.kingdomhearts.com',
-                accept: '*/*',
-                'accept-encoding': 'deflate, gzip',
-                cookie: this.packCookies(),
-                'x-sqex-hole-nsid': this.nativeSessionId,
-                'x-sqex-hole-retry': '0',
-                'content-length': resourceSizeBody1.length,
-                'content-type': 'application/x-www-form-urlencoded'
-            },
-        }, resourceSizeBody1);
+        // const resourceSizeBody1 = this.encryptUri({
+        //     resoMode: 0,
+        //     masterRevision: 0,
+        //     resourceRevision: 0,
+        //     commonMasterRevision: 0,
+        //     evResourceIds: [],
+        //     ...this.getSelfStatus(),
+        // });
+        // const resourceSizeRes1 = await this.performRequest({
+        //     host,
+        //     port,
+        //     method: 'PUT',
+        //     path: `/system/resourcesize/20200423?m=1`,
+        //     headers: {
+        //         host: 'api-s.sp.kingdomhearts.com',
+        //         accept: '*/*',
+        //         'accept-encoding': 'deflate, gzip',
+        //         cookie: this.packCookies(),
+        //         'x-sqex-hole-nsid': this.nativeSessionId,
+        //         'x-sqex-hole-retry': '0',
+        //         'content-length': resourceSizeBody1.length,
+        //         'content-type': 'application/x-www-form-urlencoded'
+        //     },
+        // }, resourceSizeBody1);
 
-        const resourceSizeBody2 = this.encryptUri({
-            resoMode: 1,
-            masterRevision: 0,
-            resourceRevision: 0,
-            commonMasterRevision: 0,
-            evResourceIds: [],
-            ...this.getSelfStatus(),
-        });
-        const resourceSizeRes2 = await this.performRequest({
-            host,
-            port,
-            method: 'PUT',
-            path: `/system/resourcesize/20200423?m=1`,
-            headers: {
-                host: 'api-s.sp.kingdomhearts.com',
-                accept: '*/*',
-                'accept-encoding': 'deflate, gzip',
-                cookie: this.packCookies(),
-                'x-sqex-hole-nsid': this.nativeSessionId,
-                'x-sqex-hole-retry': '0',
-                'content-length': resourceSizeBody2.length,
-                'content-type': 'application/x-www-form-urlencoded'
-            },
-        }, resourceSizeBody2);
+        // const resourceSizeBody2 = this.encryptUri({
+        //     resoMode: 1,
+        //     masterRevision: 0,
+        //     resourceRevision: 0,
+        //     commonMasterRevision: 0,
+        //     evResourceIds: [],
+        //     ...this.getSelfStatus(),
+        // });
+        // const resourceSizeRes2 = await this.performRequest({
+        //     host,
+        //     port,
+        //     method: 'PUT',
+        //     path: `/system/resourcesize/20200423?m=1`,
+        //     headers: {
+        //         host: 'api-s.sp.kingdomhearts.com',
+        //         accept: '*/*',
+        //         'accept-encoding': 'deflate, gzip',
+        //         cookie: this.packCookies(),
+        //         'x-sqex-hole-nsid': this.nativeSessionId,
+        //         'x-sqex-hole-retry': '0',
+        //         'content-length': resourceSizeBody2.length,
+        //         'content-type': 'application/x-www-form-urlencoded'
+        //     },
+        // }, resourceSizeBody2);
 
         const mastersBody = this.encryptUri({
             revision: 0,
             commonRevision: 0,
             ...this.getSelfStatus(),
-        }, '\x05');
+        }, '\x05'); // This padding character is extremely necessary
         return this.performRequest({
             host,
             port,
