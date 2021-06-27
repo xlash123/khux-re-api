@@ -27,7 +27,7 @@ You can obtain your UUID by capturing the data packets between your device and t
 13. After logging in successfully, let the game go back to the **title screen**.
 14. Close **KHUx**
 15. In the **Packet Capture** app, select the first item in the list
-16. Select the 8th item from the bottom
+16. Select the 3rd or maybe 8th item from the bottom (it's not an exact science)
 17. You should see something like `{"UUID":"<data here>","deviceType":2 ...`
 18. Highlight the data after "UUID" in between the quotation marks and click copy.
 19. Note what number comes after **deviceType**. This is also required.
