@@ -5,7 +5,7 @@ This repo contains tools I've been using to successfully view and modify API tra
 This also includes a terminal client, able to connect with the real game server and login. All you need is the UUID associated with your account.
 
 ## Backup
-To backup your user data, you'll need your [UUID](/Getting%20UUID.md), [device type](/Getting%20UUID.md), and NodeJS installed to your system. Then open a terminal in the same directory as this project and enter the following commands:
+To backup your user data, you'll need your [UUID](/Getting%20UUID.md), [device type](/Getting%20UUID.md), and [NodeJS](https://nodejs.org/en/download/) installed to your system. Then open a terminal in the same directory as this project and enter the following commands:
 ```bash
 npm install # Only needs to be run one
 node index.js --backup <insert uuid here> --device <number> # Don't include the <> in your command
