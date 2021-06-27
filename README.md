@@ -11,6 +11,8 @@ npm install # Only needs to be run one
 node index.js --backup <insert uuid here> # Don't include the <> in your command
 ```
 
+Your user data will be backed up to a file called `user_data.json`. Make sure to have this handy for a potential private server in the future.
+
 ## How Does the API Work?
 There are 2 main endpoints involved in the API: `api-s.kingdomhearts.com` and `psg.sqex-bridge.jp/native/session`. Upon startup, KHUx communicates using an HTTPS REST API and JSON payloads to the KH api to obtain some status and session information. Most of these payloads are compressed using gzip. Then KHUx obtains a `sharedSecurityKey` and more session cookies from sqex after sending its session info.
 
