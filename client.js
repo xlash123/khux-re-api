@@ -11,7 +11,6 @@ var port = '443';
 //var HostPort = '442';
 
 const systemStatusData = '{"appSignature":"f048533ed4e1409a732831957a34a09f"}';
-const uuid = '950f4192-f28a-469b-b602-dac828f0548a';
 
 // Parses 'cookie_user_session_code' from cookies array
 function getUserSessionCode(cookies) {
@@ -41,24 +40,37 @@ function getNodeCookies(cookies) {
 }
 
 class KHUXClient {
-    sharedSecurityKey;
-    nativeSessionId;
-    cookieUserSessionCode;
-    weirdNameCookie;
-    nodeCookies;
+    sharedSecurityKey = '';
+    nativeSessionId = '';
+    cookieUserSessionCode = '';
+    weirdNameCookie = '';
+    nodeCookies = [];
+    uuid;
 
     userData;
 
     isLoggedIn = false;
 
-    constructor() {
+    isNewKhux = true;
+    isNewDr = true;
+
+    constructor(uuid) {
+        this.uuid = uuid;
+    }
+
+    getSavedUserId() {
+        return this.userData?.user?.userId;
     }
     
     packCookies() {
-        return [
-            'nAJW839RbEHrfm6M=' + this.weirdNameCookie,
-            'cookie_user_session_code=' + this.cookieUserSessionCode,
-        ].concat(this.nodeCookies);
+        const ret = [];
+        if (this.weirdNameCookie) {
+            ret.push('nAJW839RbEHrfm6M=' + this.weirdNameCookie)
+        }
+        if (this.cookieUserSessionCode) {
+            ret.push('cookie_user_session_code=' + this.cookieUserSessionCode);
+        }
+        return ret.concat(this.nodeCookies);
     }
 
     // Parse through cookies and update them locally
@@ -97,7 +109,39 @@ class KHUXClient {
         return encryptJson(obj, this.sharedSecurityKey);
     }
 
-    async performRequest(params, postData) {
+    async performRequest(paramsObj, postData, pad = '\x04') {
+        // Allow for default parameters and headers
+        const params = {
+            host,
+            port,
+            method: 'GET',
+            headers: {},
+        };
+        const headers = {
+            accept: '*/*',
+            'accept-encoding': 'deflate, gzip',
+            cookie: this.packCookies(),
+        };
+        if (this.nativeSessionId) {
+            headers['x-sqex-hole-nsid'] = this.nativeSessionId,
+            headers['x-sqex-hole-retry'] = '0';
+        }
+        if (typeof paramsObj === 'object') {
+            Object.assign(params, paramsObj);
+        }
+        if (params.method !== 'GET') {
+            headers['content-type'] = 'application/x-www-form-urlencoded;charset=UTF8';
+            headers['content-length'] = postData.length;
+        }
+        if (paramsObj?.headers) {
+            Object.assign(headers, paramsObj.headers);
+        }
+        else if (typeof paramsObj === 'string') {
+            // Set path if paramsObj is a string and add normal flair
+            params.path = `${paramsObj}?m=1&${'i=' + this.userData ? this.getSavedUserId() : ''}&${this.encryptUri(this.getSelfStatus(), pad)}`;
+        }
+        Object.assign(params.headers, headers);
+
         return new Promise((resolve, reject) => {
             const req = https.request(params, (res) => {
                 const isGzip = res.headers['content-encoding'] === 'gzip';
@@ -187,7 +231,7 @@ class KHUXClient {
             subdomain += '/' + urlSplit[i];
         }
         const sessionData = JSON.stringify({
-            UUID: uuid,
+            UUID: this.uuid,
             deviceType: 2,
             nativeToken: loginTokenRes.body.nativeToken,
         });
@@ -224,6 +268,8 @@ class KHUXClient {
                 'X-Sqex-Hole-Retry': 0
             }
         }, loginData);
+        this.isNewKhux = loginRes.body.systemLogin.newcomerKhux;
+        this.isNewDr = loginRes.body.systemLogin.newcomerDark;
 
         this.cookieUserSessionCode = getUserSessionCode(loginRes.cookies);
 
@@ -274,19 +320,7 @@ class KHUXClient {
     }
 
     async initialStatus() {
-        const tutorialStatusRes = await this.performRequest({
-            host,
-            port,
-            method: 'GET',
-            path: '/tutorial/status?m=1&' + this.encryptUri(this.getSelfStatus()),
-            headers: {
-                accept: '*/*',
-                'accept-encoding': 'deflate, gzip',
-                cookie: this.packCookies(),
-                'x-sqex-hole-nsid': this.nativeSessionId,
-                'x-sqex-hole-retry': '0',
-            },
-        });
+        const tutorialStatusRes = await this.getTutorialStatus();
 
         const userAwakenBody = this.encryptJson(this.getSelfStatus());
         const userAwakenRes = await this.performRequest({
@@ -305,35 +339,12 @@ class KHUXClient {
             },
         }, userAwakenBody);
 
-        const userRes = await this.performRequest({
-            host,
-            port,
-            method: 'GET',
-            path: '/user?m=1&' + this.encryptUri(this.getSelfStatus()),
-            headers: {
-                accept: '*/*',
-                'accept-encoding': 'deflate, gzip',
-                cookie: this.packCookies(),
-                'x-sqex-hole-nsid': this.nativeSessionId,
-                'x-sqex-hole-retry': '0',
-            },
-        });
+        const userRes = await this.getUserData();
+        const userStartRes = await this.getUserStart();            
+    }
 
-        this.userData = userRes.body.userData;
-
-        const userStartRes = await this.performRequest({
-            host,
-            port,
-            method: 'GET',
-            path: `/user/start?m=1&i=${this.userData.user.userId}&${this.encryptUri(this.getSelfStatus())}`,
-            headers: {
-                accept: '*/*',
-                'accept-encoding': 'deflate, gzip',
-                cookie: this.packCookies(),
-                'x-sqex-hole-nsid': this.nativeSessionId,
-                'x-sqex-hole-retry': '0',
-            },
-        });                
+    async getTutorialStatus() {
+        return this.performRequest('/tutorial/status', 0, '\x05');
     }
 
     async startStage() {
@@ -348,7 +359,7 @@ class KHUXClient {
             host,
             port,
             method: 'POST',
-            path: `/stage/start?m=1&i=${this.userData.user.userId}`,
+            path: `/stage/start?m=1&i=${this.getSavedUserId()}`,
             headers: {
                 host: 'api-s.sp.kingdomhearts.com',
                 accept: '*/*',
@@ -421,7 +432,7 @@ class KHUXClient {
             host,
             port,
             method: 'POST',
-            path: `/stage/retire?m=1&i=${this.userData.user.userId}`,
+            path: `/stage/retire?m=1&i=${this.getSavedUserId()}`,
             headers: {
                 host: 'api-s.sp.kingdomhearts.com',
                 accept: '*/*',
@@ -440,7 +451,7 @@ class KHUXClient {
             host,
             port,
             method: 'GET',
-            path: `pet/expedition/recover?m=1&i=${this.userData.user.userId}&${this.encryptUri(this.getSelfStatus())}`,
+            path: `pet/expedition/recover?m=1&i=${this.getSavedUserId()}&${this.encryptUri(this.getSelfStatus())}`,
             headers: {
                 accept: '*/*',
                 'accept-encoding': 'deflate, gzip',
@@ -542,23 +553,7 @@ class KHUXClient {
             host,
             port,
             method: 'GET',
-            path: `/user/chat?m=1&i=${this.userData.user.userId}&${this.encryptUri(this.getSelfStatus())}`,
-            headers: {
-                accept: '*/*',
-                'accept-encoding': 'deflate, gzip',
-                cookie: this.packCookies(),
-                'x-sqex-hole-nsid': this.nativeSessionId,
-                'x-sqex-hole-retry': '0',
-            },
-        });
-    }
-    
-    async getParty() {
-        return this.performRequest({
-            host,
-            port,
-            method: 'GET',
-            path: `/user/chat?m=1&i=${this.userData.user.userId}&${this.encryptUri(this.getSelfStatus())}`,
+            path: `/user/chat?m=1&i=${this.getSavedUserId()}&${this.encryptUri(this.getSelfStatus())}`,
             headers: {
                 accept: '*/*',
                 'accept-encoding': 'deflate, gzip',
@@ -570,39 +565,249 @@ class KHUXClient {
     }
 
     async getJewels() {
+        return this.performRequest('/user/stone', 0, '\x05');
+    }
+
+    async getUserData(updateUserData = true) {
+        const userDataRes = await this.performRequest('/user', 0, '\x06');
+        
+        if (updateUserData) {
+            // Track userData for future requests
+            this.userData = userDataRes.body.userData;
+        }
+        return userDataRes;
+    }
+
+    async getUserStart() {
+        // There is more data included in v= body, but it's encoded
+        return this.performRequest('/user/start', 0, '\t');    
+    }
+
+    async getUserChat() {
+        return this.performRequest('/user/chat', 0, '\x06');
+    }
+
+    async getUserMedals() {
+        return this.performRequest('/user/medal', 0, '\x05');
+    }
+
+    async getParty() {
+        return this.performRequest('/party', 0, '\x06');
+    }
+
+    async getUserShop() {
+        return this.performRequest('/user/shop', 0, '\x07');
+    }
+
+    async getUserOptions() {
+        return this.performRequest('/user/option', 0, '\x06');
+    }
+
+    async getPetProfile() {
+        return this.performRequest('/pet/profile', 0, '\b');
+    }
+
+    async getPetCoordinateParts() {
+        return this.performRequest('/pet/coordinate/parts', 0, '\x05');
+    }
+
+    async getPetCoordinateAll() {
+        return this.performRequest('/pet/coordinate/all', 0, '\x06');
+    }
+
+    async getUserMission() {
+        return this.performRequest('/user/mission', 0, '\x06');
+    }
+
+    async deletePvpLock() {
+        const payload = this.encryptUri(this.getSelfStatus(), '\x06');
         return this.performRequest({
-            host,
-            port,
-            method: 'GET',
-            path: `/user/stone?m=1&i=${this.userData.user.userId}&${this.encryptUri(this.getSelfStatus())}`,
-            headers: {
-                accept: '*/*',
-                'accept-encoding': 'deflate, gzip',
-                cookie: this.packCookies(),
-                'x-sqex-hole-nsid': this.nativeSessionId,
-                'x-sqex-hole-retry': '0',
-            },
+            method: 'DELETE',
+            path: `/pvp/lock?m=1&i=${this.getSavedUserId()}`,
+        }, payload);
+    }
+
+    async putPassiveList() {
+        const payload = this.encryptUri({
+            isList: 1,
+            ...this.getSelfStatus(),
+        }, '\n');
+        return this.performRequest({
+            method: 'PUT',
+            path: `/passive/list?m=1&i=${this.getSavedUserId()}`,
+        }, payload);
+    }
+
+    async putEmblemList() {
+        const payload = this.encryptUri(this.getSelfStatus(), '\x06');
+        return this.performRequest({
+            method: 'PUT',
+            path: `/emblem/list?m=1&i=${this.getSavedUserId()}`,
+        }, payload);
+    }
+
+    async getUserSphere() {
+        return this.performRequest('/user/sphere', 0, '\x05');
+    }
+
+    async getUserSkill() {
+        return this.performRequest('/user/skill', 0, '\x05');
+    }
+
+    async getUserMaterial() {
+        return this.performRequest('/user/material', 0, '\x05');
+    }
+
+    async getUserKeyblade() {
+        return this.performRequest('/user/keyblade', 0, '\x05');
+    }
+
+    async getUserDeck() {
+        return this.performRequest('/user/deck', 0, '\x05');
+    }
+
+    async getKeybladeSubslot() {
+        return this.performRequest('/keyblade/subslot', 0, '\x05');
+    }
+
+    async getUserAvatarAll() {
+        return this.performRequest('/user/avatar/all', 0, '\x06');
+    }
+
+    async getUserAvatarParts() {
+        return this.performRequest('/user/avatar/parts', 0, '\x05');
+    }
+
+    async getUserTitle() {
+        return this.performRequest('/user/title', 0, '\x06');
+    }
+
+    async getUserLink() {
+        return this.performRequest('/user/link', 0, '\x06');
+    }
+
+    async getUserSupport() {
+        return this.performRequest('/user/support', 0, '\x06');
+    }
+
+    async getPartyMemberList() {
+        const payload = this.encryptUri({
+            getDetail: 1,
+            platformType: 1,
+            ...this.getSelfStatus(),
+        }, '\x07');
+        return this.performRequest({
+            path: `/party/member/list?m=1i=${this.getSavedUserId()}&${payload}`,
         });
     }
 
-    async getUserData() {
+    async getUserProfile(userId) {
+        const payload = this.encryptUri({
+            userId,
+            ...this.getSelfStatus(),
+        }, '\x06');
         return this.performRequest({
-            host,
-            port,
-            method: 'GET',
-            path: '/user?m=1&' + this.encryptUri(this.getSelfStatus()),
-            headers: {
-                accept: '*/*',
-                'accept-encoding': 'deflate, gzip',
-                cookie: this.packCookies(),
-                'x-sqex-hole-nsid': this.nativeSessionId,
-                'x-sqex-hole-retry': '0',
-            },
-        }).body;
+            path: `/user/profile?m=1i=${this.getSavedUserId()}&${payload}`,
+        })
     }
 
+    async getLsiGames() {
+        return this.performRequest('/lsi/game', 0, '\x05');
+    }
+
+    // Returns an object that defines all of the user's data
     async saveAllUserData() {
-        
+        if (this.isNewKhux || this.isNewDr) {
+            console.log('Cannot backup data for new users. Did you enter the right UUID?');
+            return null;
+        }
+        const { userData, userPopUp } = (await this.getUserData()).body;
+        const { result } = (await this.getUserStart()).body;
+        const { userData: userDataChat, authToken, userToken } = (await this.getUserChat()).body;
+        Object.assign(userData, userDataChat);
+        const { userParty, party, partyLeader } = (await this.getParty()).body;
+        const { userStone } = (await this.getJewels()).body;
+        const { userBenefits } = (await this.getUserShop()).body;
+        const { userOption } = (await this.getUserOptions()).body;
+        const {
+            pet,
+            recoverDatetime,
+            recoverStoneNum,
+            expeditionTotalNum,
+            expeditionMonthlyNum,
+        } = (await this.getPetProfile()).body;
+        const { pet: petUserParts } = (await this.getPetCoordinateParts()).body;
+        Object.assign(pet, petUserParts);
+        const { pet: petCoordinates } = (await this.getPetCoordinateAll()).body;
+        Object.assign(pet, petCoordinates);
+        const {
+            phase,
+            popupFlag,
+            isFinished,
+            acquireTutorialJewel
+        } = (await this.getTutorialStatus()).body;
+        const { id } = (await this.getUserMission()).body;
+        (await this.deletePvpLock()); // Likely removes PVP lock if you've reached quest 130
+        const { passiveSettingIds, newPassiveSettingIds } = (await this.putPassiveList()).body;
+        const { emblemIds } = (await this.putEmblemList()).body;
+        const { userSphere } = (await this.getUserSphere()).body;
+        const { userMedals } = (await this.getUserMedals()).body;
+        const { userSkills } = (await this.getUserSkill()).body;
+        const { userMaterials } = (await this.getUserMaterial()).body;
+        const { userKeyblades } = (await this.getUserKeyblade()).body;
+        const { userDecks } = (await this.getUserDeck()).body;
+        const { userKeybladeSubslots, subslotMaxNum } = (await this.getKeybladeSubslot()).body;
+        const { userAvatars } = (await this.getUserAvatarAll()).body;
+        const { userAvatarParts } = (await this.getUserAvatarParts()).body;
+        const { userTitles } = (await this.getUserTitle()).body;
+        const { linkInfos } = (await this.getUserLink()).body;
+        const { supportUser } = (await this.getUserSupport()).body;
+        const { partyUserList /*, party, userParty */ } = (await this.getPartyMemberList()).body;
+        const userProfile = (await this.getUserProfile()).body;
+        delete userProfile.ret;
+        const { lsiGames, lsiIsAllClear } = (await this.getLsiGames()).body;
+
+        return {
+            userData,
+            userPopUp,
+            'user/result:result': result,
+            authToken,
+            userToken,
+            userParty,
+            party,
+            partyLeader,
+            userStone,
+            userBenefits,
+            userOption,
+            pet,
+            recoverDatetime,
+            recoverStoneNum,
+            expeditionTotalNum,
+            expeditionMonthlyNum,
+            phase,
+            popupFlag,
+            isFinished,
+            acquireTutorialJewel,
+            passiveSettingIds,
+            newPassiveSettingIds,
+            user_mission_id: id,
+            emblemIds,
+            userSphere,
+            userMedals,
+            userSkills,
+            userMaterials,
+            userKeyblades,
+            userDecks,
+            userKeybladeSubslots,
+            userAvatars,
+            userAvatarParts,
+            userTitles,
+            linkInfos,
+            supportUser,
+            partyUserList,
+            lsiGames,
+            lsiIsAllClear,
+        };
     }
 }
 
