@@ -3,7 +3,7 @@ const { gunzipSync } = require('zlib');
 const { Buffer } = require('buffer');
 const { decryptJson, encryptUri, encryptJson, decryptRaw } = require('./encoding');
 
-const DEBUG = false;
+const DEBUG = true;
 
 var host = 'api-s.sp.kingdomhearts.com';
 //var Host = '192.168.1.103';
@@ -61,6 +61,7 @@ class KHUXClient {
     weirdNameCookie = '';
     nodeCookies = [];
     uuid;
+    deviceType;
 
     userData;
     darkUser;
@@ -71,8 +72,9 @@ class KHUXClient {
     isNewKhux = true;
     isNewDr = true;
 
-    constructor(uuid) {
+    constructor(uuid, deviceType = 2) {
         this.uuid = uuid;
+        this.deviceType = deviceType;
     }
 
     getSavedUserId() {
@@ -116,7 +118,7 @@ class KHUXClient {
     getSelfStatus() {
         return {
             ruv: Math.floor(Math.random() * 10000000000),
-            deviceType: 2,
+            deviceType: this.deviceType,
             systemVersion: '30',
             appVersion: '4.3.1'
         }
@@ -273,7 +275,7 @@ class KHUXClient {
         }
         const sessionData = JSON.stringify({
             UUID: this.uuid,
-            deviceType: 2,
+            deviceType: this.deviceType,
             nativeToken: loginTokenRes.body.nativeToken,
         });
         const sessionRes = await this.performRequest({

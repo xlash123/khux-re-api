@@ -16,6 +16,7 @@ const optDefs = [
 	{ name: 'key', type: String },
 	{ name: 'client', type: Boolean },
 	{ name: 'backup', type: String },
+	{ name: 'device', type: String },
 ];
 
 const opts = commandLineArgs(optDefs);
@@ -27,7 +28,7 @@ if (opts.mitm) {
 } else if (opts.client) {
 	doClient();
 } else if (opts.backup) {
-	doBackup(opts.backup);
+	doBackup(opts.backup, opts.device || 2);
 }
 
 async function doClient() {
@@ -37,8 +38,8 @@ async function doClient() {
 	// Do stuff here
 }
 
-async function doBackup(uuid) {
-	const client = new KHUXClient(uuid);
+async function doBackup(uuid, deviceType = 2) {
+	const client = new KHUXClient(uuid, deviceType);
 	await client.init();
 	await client.loginKhux()
 	const allUserData = await client.getAllUserData();

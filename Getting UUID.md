@@ -3,6 +3,12 @@ A UUID is a random string that is generated per device. This UUID is linked with
 
 The UUID is the only thing needed to log into your account, so keep it a secret.
 
+In addition to logging in, your device type needs to be known. The currently known types are:
+
+- iPhone - 1
+- Android - 2
+- Amazon Android - 8
+
 # How can I obtain my UUID?
 You can obtain your UUID by capturing the data packets between your device and the KHUx servers. This can be done easily on Android 7 and below. If you don't have Android 7 or below, then you can easily do this method using Bluestacks.
 
@@ -24,6 +30,7 @@ You can obtain your UUID by capturing the data packets between your device and t
 16. Select the 8th item from the bottom
 17. You should see something like `{"UUID":"<data here>","deviceType":2 ...`
 18. Highlight the data after "UUID" in between the quotation marks and click copy.
+19. Note what number comes after **deviceType**. This is also required.
 
 Congrats! You now have your UUID! Keep this a secret from others as it is the only data needed to log into an account.
 
