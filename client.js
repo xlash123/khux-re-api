@@ -158,7 +158,7 @@ class KHUXClient {
     }
 
     // Perform the first few requests that establish a login
-    async login() {
+    async login(initUser = true) {
         const systemRes = await this.performRequest({
             host,
             port,
@@ -264,7 +264,9 @@ class KHUXClient {
         this.weirdNameCookie = getWeirdCookie(khuxLoginRes.cookies);
         this.nodeCookies = getNodeCookies(khuxLoginRes.cookies);
 
-        // await this.initialStatus();
+        if (initUser) {
+            await this.initialStatus();
+        }
 
         this.isLoggedIn = true;
 
@@ -332,6 +334,105 @@ class KHUXClient {
                 'x-sqex-hole-retry': '0',
             },
         });                
+    }
+
+    async startStage() {
+        const stageBody = this.encryptUri({
+            stageId: 1001010,
+            supportUserId: 0,
+            userKeybladeId: 1789171,
+            isSteal: 1,
+            ...this.getSelfStatus(),
+        }, '\x0B');
+        return this.performRequest({
+            host,
+            port,
+            method: 'POST',
+            path: `/stage/start?m=1&i=${this.userData.user.userId}`,
+            headers: {
+                host: 'api-s.sp.kingdomhearts.com',
+                accept: '*/*',
+                'accept-encoding': 'deflate, gzip',
+                cookie: this.packCookies(),
+                'x-sqex-hole-nsid': this.nativeSessionId,
+                'x-sqex-hole-retry': '0',
+                'content-length': stageBody.length,
+                'content-type': 'application/x-www-form-urlencoded'
+            },
+        }, stageBody);
+    }
+
+    async clearStage() {
+        const stageBody = this.encryptUri({
+            getPoint: { exp: 29, raidPoint: 0, money: 3654, lux: 16220, score: 0 },
+            getMaterials: [],
+            getEnemyDropItems: [
+                8, 9, 10, 5,
+                6, 2,  3
+            ],
+            getTreasures: [ 13, 14 ],
+            clearMissionIds: [ 1, 2, 3 ],
+            enemyDeadNumber: 7,
+            mimicDeadNumber: 0,
+            rareEnemyDeadNumber: 0,
+            maximumDamage: 1253181,
+            guiltBurstMaximumDamage: 0,
+            burst: 210000,
+            conditions: {
+                '04_0': 0,
+                '04_1': 0,
+                '04_2': 0,
+                '05_0': 3,
+                '07_0': 3,
+                '08_0': 3,
+                '09_0': 0,
+                '10_0': 0,
+                '11_0': 0,
+                '11_1': 0,
+                '11_2': 0,
+                '11_3': 0,
+                '12_0': 1,
+                '12_1': 0,
+                '12_2': 0,
+                '14_0': 0,
+                '14_1': 0,
+                '14_2': 0,
+                '15_0': 0,
+                '15_1': 0,
+                '15_2': 0,
+                '17_0': 2,
+                '18_0': 0,
+                '19_0': 0,
+                '19_1': 0,
+                '19_2': 0,
+                '28_0': 1,
+                '32_0': 3,
+                '36_0': 0,
+                '37_0': 2414
+            },
+            missionConditions: { defeated: { '5': 2, '11': 1, '141': 3, '10011': 1 } },
+            ...this.getSelfStatus(),
+        }, '\x02');
+    }
+
+    async quitStage() {
+        const stageBody = this.encryptUri(this.getSelfStatus(), '\x06');
+        return this.performRequest({
+            host,
+            port,
+            method: 'POST',
+            path: `/stage/retire?m=1&i=${this.userData.user.userId}`,
+            headers: {
+                host: 'api-s.sp.kingdomhearts.com',
+                accept: '*/*',
+                'accept-encoding': 'deflate, gzip',
+                cookie: this.packCookies(),
+                'x-sqex-hole-nsid': this.nativeSessionId,
+                'x-sqex-hole-retry': '0',
+                'content-length': stageBody.length,
+                'content-type': 'application/x-www-form-urlencoded'
+            },
+        }, stageBody);
     }
 
     async getPetRecover() {
@@ -429,7 +530,7 @@ class KHUXClient {
                 host: 'api-s.sp.kingdomhearts.com',
                 accept: '*/*',
                 'accept-encoding': 'deflate, gzip',
-                cookie: this.packCookies().join('; '),
+                cookie: this.packCookies(),
                 'x-sqex-hole-nsid': this.nativeSessionId,
                 'x-sqex-hole-retry': '0',
             },
@@ -498,6 +599,10 @@ class KHUXClient {
                 'x-sqex-hole-retry': '0',
             },
         }).body;
+    }
+
+    async saveAllUserData() {
+        
     }
 }
 

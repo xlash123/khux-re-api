@@ -4,8 +4,9 @@ const commandLineArgs = require('command-line-args');
 const readline = require('readline');
 
 const { launchMitm } = require('./mitm');
-const { decryptUri, decryptJson } = require('./encoding');
+const { decryptUri, decryptJson, decryptRaw } = require('./encoding');
 const { KHUXClient } = require('./client');
+const fs = require('fs');
 
 const optDefs = [
 	{ name: 'mitm', type: Boolean },
@@ -23,7 +24,7 @@ if (opts.mitm) {
 } else if (opts.client) {
 	const client = new KHUXClient();
 	client.login().then(() => {
-		client.getSystemMaster();
+		client.quitStage();
 	});
 }
 
@@ -42,14 +43,22 @@ async function bulkDecode(key) {
 
 	rl.on('line', (line) => {
 		let payload;
+		let rawPayload;
+		if (line.startsWith('file:')) {
+			const filename = line.substring('file:'.length);
+			line = fs.readFileSync(filename).toString().trim();
+		}
 		if (line.startsWith('v=')) {
 			payload = decryptUri(line, sharedKey);
+			rawPayload = decryptRaw(decodeURIComponent(line.substring(2)), sharedKey);
 		} else {
 			payload = decryptJson(line, sharedKey);
+			rawPayload = decryptRaw(line, sharedKey);
 		}
+		console.log({ raw: rawPayload });
 		try {
 			const parsed = JSON.parse(payload);
-			console.log(parsed);
+			console.dir(parsed, { depth: 10 });
 		} catch (e) {
 			console.log('Invalid');
 		}
