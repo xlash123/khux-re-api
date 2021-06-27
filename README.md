@@ -1,6 +1,16 @@
 # KHUX API Reverse Engineering
 This repo contains tools I've been using to successfully view and modify API traffic for KHUx/KHDR. I do not condone the use of my tools to hack or gain an unfair advantage in the game; these tools are only available to gain insight on how the game functions.
 
+## Client
+This also includes a terminal client, able to connect with the real game server and login. All you need is the UUID associated with your account.
+
+## Backup
+To backup your user data, install NodeJS to your system. Then open a terminal in the same directory as this project and enter the following commands:
+```bash
+npm install # Only needs to be run one
+node index.js --backup <insert uuid here> # Don't include the <> in your command
+```
+
 ## How Does the API Work?
 There are 2 main endpoints involved in the API: `api-s.kingdomhearts.com` and `psg.sqex-bridge.jp/native/session`. Upon startup, KHUx communicates using an HTTPS REST API and JSON payloads to the KH api to obtain some status and session information. Most of these payloads are compressed using gzip. Then KHUx obtains a `sharedSecurityKey` and more session cookies from sqex after sending its session info.
 

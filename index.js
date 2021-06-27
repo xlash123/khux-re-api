@@ -25,21 +25,26 @@ if (opts.mitm) {
 	console.log(opts);
 	bulkDecode(opts.key);
 } else if (opts.client) {
-	const client = new KHUXClient(test_uuid);
-	client.login().then(() => {
-		client.saveAllUserData().then((allUserData) => {
-			if (allUserData)
-				fs.writeFileSync('user_data.json', JSON.stringify(allUserData, undefined, 2));
-		});
-	});
+	doClient();
 } else if (opts.backup) {
-	const client = new KHUXClient(opts.backup);
-	client.login().then(() => {
-		client.saveAllUserData().then((allUserData) => {
-			if (allUserData)
-				fs.writeFileSync('user_data.json', JSON.stringify(allUserData, undefined, 2));
-		});
-	});
+	doBackup(opts.backup);
+}
+
+async function doClient() {
+	const client = new KHUXClient(test_uuid);
+	await client.init();
+	await client.loginKhux();
+	// Do stuff here
+}
+
+async function doBackup(uuid) {
+	const client = new KHUXClient(uuid);
+	await client.init();
+	await client.loginKhux()
+	const allUserData = await client.getAllUserData();
+	if (allUserData) {
+		fs.writeFileSync('user_data.json', JSON.stringify(allUserData, undefined, 2));
+	}
 }
 
 async function bulkDecode(key) {
@@ -55,14 +60,21 @@ async function bulkDecode(key) {
 		sharedKey = await ask('Enter shared key: ');
 	}
 
+	let depth = 1;
+
 	rl.on('line', (line) => {
 		try {
 			let payload;
 			let rawPayload;
-			if (line.startsWith('file:')) {
+			let doDecrypt = true;
+			if (line.startsWith('depth:')) {
+				doDecrypt = false;
+				depth = parseInt(line.substring('depth:'.length));
+			} else if (line.startsWith('file:')) {
 				const filename = line.substring('file:'.length);
 				line = fs.readFileSync(filename).toString().trim();
 			}
+			
 			if (line.startsWith('v=')) {
 				payload = decryptUri(line, sharedKey);
 				rawPayload = decryptRaw(decodeURIComponent(line.substring(2)), sharedKey);
@@ -70,12 +82,14 @@ async function bulkDecode(key) {
 				payload = decryptJson(line, sharedKey);
 				rawPayload = decryptRaw(line, sharedKey);
 			}
-			console.log({ raw: rawPayload });
-			try {
-				const parsed = JSON.parse(payload);
-				console.dir(parsed, { depth: 1 });
-			} catch (e) {
-				console.log('Invalid');
+			if (doDecrypt) {
+				console.log({ raw: rawPayload });
+				try {
+					const parsed = JSON.parse(payload);
+					console.dir(parsed, { depth });
+				} catch (e) {
+					console.log('Invalid');
+				}
 			}
 		} catch (e) {
 			console.error(e);

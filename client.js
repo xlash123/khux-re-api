@@ -3,7 +3,7 @@ const { gunzipSync } = require('zlib');
 const { Buffer } = require('buffer');
 const { decryptJson, encryptUri, encryptJson, decryptRaw } = require('./encoding');
 
-const DEBUG = true;
+const DEBUG = false;
 
 var host = 'api-s.sp.kingdomhearts.com';
 //var Host = '192.168.1.103';
@@ -39,6 +39,21 @@ function getNodeCookies(cookies) {
     return false;
 }
 
+function getUsefulBody(response) {
+    // if (!response || !response.body) return undefined;
+    const { ret, ...newObj } = response.body;
+    return newObj;
+}
+
+function cleanSaveObject(save) {
+    const ret = {};
+    Object.keys(save).forEach((key) => {
+        console.log(key);
+        ret[key] = getUsefulBody(save[key]);
+    });
+    return ret;
+}
+
 class KHUXClient {
     sharedSecurityKey = '';
     nativeSessionId = '';
@@ -48,8 +63,10 @@ class KHUXClient {
     uuid;
 
     userData;
+    darkUser;
 
-    isLoggedIn = false;
+    isLoggedInKhux = false;
+    isLoggedInDr = false;
 
     isNewKhux = true;
     isNewDr = true;
@@ -60,6 +77,10 @@ class KHUXClient {
 
     getSavedUserId() {
         return this.userData?.user?.userId;
+    }
+
+    getSavedDarkUserId() {
+        return this.darkUser?.darkUser?.userId;
     }
     
     packCookies() {
@@ -137,8 +158,10 @@ class KHUXClient {
             Object.assign(headers, paramsObj.headers);
         }
         else if (typeof paramsObj === 'string') {
+            const m = this.isLoggedInKhux ? 1 : (this.isLoggedInDr ? 2 : 0);
+            const userId = this.isLoggedInKhux ? this.getSavedUserId() : (this.isLoggedInDr ? this.getSavedDarkUserId() : '');
             // Set path if paramsObj is a string and add normal flair
-            params.path = `${paramsObj}?m=1&${'i=' + this.userData ? this.getSavedUserId() : ''}&${this.encryptUri(this.getSelfStatus(), pad)}`;
+            params.path = `${paramsObj}?m=${m}&${userId ? `i=${userId}` : ''}&${this.encryptUri(this.getSelfStatus(), pad)}`;
         }
         Object.assign(params.headers, headers);
 
@@ -187,6 +210,8 @@ class KHUXClient {
                             response,
                             payload: postData,
                         }, { depth: 10 });
+                    } else if (body?.ret?.error) {
+                        console.log(body.ret.error);
                     }
                     resolve(response);
                 });
@@ -201,8 +226,24 @@ class KHUXClient {
         });
     }
 
-    // Perform the first few requests that establish a login
-    async login(initUser = true) {
+    // Perform enough requests to obtain a key and session
+    async init(mode = 0) {
+        this.sharedSecurityKey = '';
+        this.nativeSessionId = '';
+        this.cookieUserSessionCode = '';
+        this.weirdNameCookie = '';
+        this.nodeCookies = [];
+
+        this.userData = undefined;
+        this.darkUser = undefined;
+
+        this.isLoggedInKhux = false;
+        this.isLoggedInDr = false;
+
+        this.isNewKhux = true;
+        this.isNewDr = true;
+        
+
         const systemRes = await this.performRequest({
             host,
             port,
@@ -218,12 +259,12 @@ class KHUXClient {
             host,
             port,
             method: 'GET',
-            path: '/login/token?m=0',
+            path: `/login/token?m=${mode}`,
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF8',
                 'Cookie': [...systemRes.cookies].splice(1, 1),
             },
-        })
+        });
 
         const urlSplit = loginTokenRes.body.url.split('/');
         let subdomain = '';
@@ -239,7 +280,7 @@ class KHUXClient {
             host: urlSplit[2],
             port,
             method: 'POST',
-            path: subdomain + '?m=0',
+            path: subdomain + `?m=${mode}`,
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Content-Length': sessionData.length,
@@ -259,7 +300,7 @@ class KHUXClient {
             host,
             port,
             method: 'POST',
-            path: '/system/login?m=0',
+            path: `/system/login?m=${mode}`,
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF8',
                 'Content-Length': loginData.length,
@@ -279,7 +320,7 @@ class KHUXClient {
             host,
             port,
             method: 'GET',
-            path: '/system/coppa?m=0&' + coppaData,
+            path: `/system/coppa?m=${mode}&${coppaData}`,
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF8',
                 'Cookie': loginRes.cookies,
@@ -287,11 +328,10 @@ class KHUXClient {
                 'X-Sqex-Hole-Retry': 0
             }
         });
+    }
 
+    async loginKhux(initUser = true) {
         const khuxloginData = this.encryptUri(this.getSelfStatus());
-
-        const khuxLoginCookies = [...coppaRes.cookies, 'cookie_user_session_code=' + this.cookieUserSessionCode]
-
         const khuxLoginRes = await this.performRequest({
             host,
             port,
@@ -299,7 +339,7 @@ class KHUXClient {
             path: '/khux/login?m=1',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF8',
-                'Cookie': khuxLoginCookies,
+                'Cookie': this.packCookies(),
                 'x-sqex-hole-nsid': this.nativeSessionId,
                 'X-Sqex-Hole-Retry': 0,
                 'Content-Length': khuxloginData.length
@@ -311,32 +351,29 @@ class KHUXClient {
         this.nodeCookies = getNodeCookies(khuxLoginRes.cookies);
 
         if (initUser) {
-            await this.initialStatus();
+            await this.awakenUser();
         }
 
-        this.isLoggedIn = true;
+        this.isLoggedInKhux = true;
 
         return khuxLoginRes;
     }
 
-    async initialStatus() {
+    async loginDr() {
+        const payload = this.encryptUri(this.getSelfStatus(), '\x06');
+        return this.performRequest({
+            method: 'POST',
+            path:'/dark/login?m=2',
+        }, payload);
+    }
+
+    async awakenUser() {
         const tutorialStatusRes = await this.getTutorialStatus();
 
         const userAwakenBody = this.encryptJson(this.getSelfStatus());
         const userAwakenRes = await this.performRequest({
-            host,
-            port,
             method: 'PUT',
             path: '/user/awakening?m=1',
-            headers: {
-                accept: '*/*',
-                'accept-encoding': 'deflate, gzip',
-                cookie: this.packCookies(),
-                'x-sqex-hole-nsid': this.nativeSessionId,
-                'x-sqex-hole-retry': '0',
-                'content-length': userAwakenBody.length,
-                'content-type': 'application/x-www-form-urlencoded'
-            },
         }, userAwakenBody);
 
         const userRes = await this.getUserData();
@@ -715,99 +752,147 @@ class KHUXClient {
         return this.performRequest('/lsi/game', 0, '\x05');
     }
 
+    async getStageData() {
+        return this.performRequest('/stage/160310', 0, '\x05');
+    }
+
+    async getProudStageData() {
+        return this.performRequest('/stage/hard', 0, '\x05');
+    }
+
+    async getEventStageData(eventCategory) {
+        const payload = this.encryptUri({
+            eventCategory,
+            ...this.getSelfStatus(),
+        }, '\x04');
+        return this.performRequest({
+            path: `/stage/event?m=1&i=${this.getSavedUserId()}&${payload}`,
+        });
+    }
+
+    async getDarkUser() {
+        const darkUserRes = await this.performRequest('/dark/user', 0, '\x06');
+        const { ret, ...darkUser } = darkUserRes.body;
+        this.darkUser = darkUser;
+        return darkUserRes;
+    }
+
+    async getDarkUserOptions() {
+        return this.performRequest('/dark/user/option', 0, '\x05');
+    }
+
+    async getDarkUserCards() {
+        return this.performRequest('/dark/user/card', 0, '\x05');
+    }
+
+    async getDarkMaterial() {
+        return this.performRequest('/dark/material', 0, '\x06');
+    }
+
+    async getDarkMaterialEquipment() {
+        return this.performRequest('/dark/material/equip', 0, '\x05');
+    }
+
+    async getDarkTutorialStatus() {
+        return this.performRequest('/dark/tutorial/status', 0, '\x05');
+    }
+
+    async getDarkBook() {
+        const payload = this.encryptUri({
+            notUpdate: 1,
+            ...this.getSelfStatus(),
+        }, '\b');
+        return this.performRequest({
+            method: 'PUT',
+            path: `/dark/book?m=2i=${this.getSavedDarkUserId()}`,
+        }, payload);
+    }
+
+    async getDarkStage() {
+        const payload = this.encryptUri({
+            notUpdate: 1,
+            ...this.getSelfStatus(),
+        }, '\x07');
+        return this.performRequest({
+            path: `/dark/stage?m=2&i=${this.getSavedDarkUserId()}&${payload}`
+        });
+    }
+
+    async getDarkStagePve() {
+        return this.performRequest('/dark/stage/pve', 0, '\x05');
+    }
+
     // Returns an object that defines all of the user's data
-    async saveAllUserData() {
-        if (this.isNewKhux || this.isNewDr) {
+    async getAllUserData() {
+        if (this.isNewKhux && this.isNewDr) {
             console.log('Cannot backup data for new users. Did you enter the right UUID?');
             return null;
         }
-        const { userData, userPopUp } = (await this.getUserData()).body;
-        const { result } = (await this.getUserStart()).body;
-        const { userData: userDataChat, authToken, userToken } = (await this.getUserChat()).body;
-        Object.assign(userData, userDataChat);
-        const { userParty, party, partyLeader } = (await this.getParty()).body;
-        const { userStone } = (await this.getJewels()).body;
-        const { userBenefits } = (await this.getUserShop()).body;
-        const { userOption } = (await this.getUserOptions()).body;
-        const {
-            pet,
-            recoverDatetime,
-            recoverStoneNum,
-            expeditionTotalNum,
-            expeditionMonthlyNum,
-        } = (await this.getPetProfile()).body;
-        const { pet: petUserParts } = (await this.getPetCoordinateParts()).body;
-        Object.assign(pet, petUserParts);
-        const { pet: petCoordinates } = (await this.getPetCoordinateAll()).body;
-        Object.assign(pet, petCoordinates);
-        const {
-            phase,
-            popupFlag,
-            isFinished,
-            acquireTutorialJewel
-        } = (await this.getTutorialStatus()).body;
-        const { id } = (await this.getUserMission()).body;
-        (await this.deletePvpLock()); // Likely removes PVP lock if you've reached quest 130
-        const { passiveSettingIds, newPassiveSettingIds } = (await this.putPassiveList()).body;
-        const { emblemIds } = (await this.putEmblemList()).body;
-        const { userSphere } = (await this.getUserSphere()).body;
-        const { userMedals } = (await this.getUserMedals()).body;
-        const { userSkills } = (await this.getUserSkill()).body;
-        const { userMaterials } = (await this.getUserMaterial()).body;
-        const { userKeyblades } = (await this.getUserKeyblade()).body;
-        const { userDecks } = (await this.getUserDeck()).body;
-        const { userKeybladeSubslots, subslotMaxNum } = (await this.getKeybladeSubslot()).body;
-        const { userAvatars } = (await this.getUserAvatarAll()).body;
-        const { userAvatarParts } = (await this.getUserAvatarParts()).body;
-        const { userTitles } = (await this.getUserTitle()).body;
-        const { linkInfos } = (await this.getUserLink()).body;
-        const { supportUser } = (await this.getUserSupport()).body;
-        const { partyUserList /*, party, userParty */ } = (await this.getPartyMemberList()).body;
-        const userProfile = (await this.getUserProfile()).body;
-        delete userProfile.ret;
-        const { lsiGames, lsiIsAllClear } = (await this.getLsiGames()).body;
+        let khux;
+        let khdr;
 
-        return {
-            userData,
-            userPopUp,
-            'user/result:result': result,
-            authToken,
-            userToken,
-            userParty,
-            party,
-            partyLeader,
-            userStone,
-            userBenefits,
-            userOption,
-            pet,
-            recoverDatetime,
-            recoverStoneNum,
-            expeditionTotalNum,
-            expeditionMonthlyNum,
-            phase,
-            popupFlag,
-            isFinished,
-            acquireTutorialJewel,
-            passiveSettingIds,
-            newPassiveSettingIds,
-            user_mission_id: id,
-            emblemIds,
-            userSphere,
-            userMedals,
-            userSkills,
-            userMaterials,
-            userKeyblades,
-            userDecks,
-            userKeybladeSubslots,
-            userAvatars,
-            userAvatarParts,
-            userTitles,
-            linkInfos,
-            supportUser,
-            partyUserList,
-            lsiGames,
-            lsiIsAllClear,
-        };
+        /** ======== Backup KHUX ======== **/
+        if (!this.isNewKhux) {
+            if (!this.isLoggedInKhux) await this.loginKhux();
+            khux = {
+                '/user': await this.getUserData(),
+                '/user/start': await this.getUserStart(),
+                '/user/chat': await this.getUserChat(),
+                '/party': await this.getParty(),
+                '/user/stone': await this.getJewels(),
+                '/user/stop': await this.getUserShop(),
+                '/user/option': await this.getUserOptions(),
+                '/pet/profile': await this.getPetProfile(),
+                '/pet/coordinate/parts': await this.getPetCoordinateParts(),
+                '/pet/coordinate/all': await this.getPetCoordinateAll(),
+                '/tutorial/status': await this.getTutorialStatus(),
+                '/user/mission': await this.getUserMission(),
+                '/pvp/lock': await this.deletePvpLock(), // Likely removes PVP lock if you've reached quest 130
+                '/passive/list': await this.putPassiveList(),
+                '/emblem/list': await this.putEmblemList(),
+                '/user/sphere': await this.getUserSphere(),
+                '/user/medal': await this.getUserMedals(),
+                '/user/skill': await this.getUserSkill(),
+                '/user/material': await this.getUserMaterial(),
+                '/user/keyblade': await this.getUserKeyblade(),
+                '/user/deck': await this.getUserDeck(),
+                '/keyblade/subslot': await this.getKeybladeSubslot(),
+                '/user/avatar/all': await this.getUserAvatarAll(),
+                '/user/avatar/parts': await this.getUserAvatarParts(),
+                '/user/title': await this.getUserTitle(),
+                '/user/link': await this.getUserLink(),
+                '/user/support': await this.getUserSupport(),
+                '/party/member/list': await this.getPartyMemberList(),
+                '/user/profile': await this.getUserProfile(),
+                '/lsi/game': await this.getLsiGames(),
+                '/stage/160310': await this.getStageData(),
+                '/stage/hard': await this.getProudStageData(),
+                '/stage/event': await this.getEventStageData(2),
+            };
+            khux = cleanSaveObject(khux);
+        }
+
+        /** ======== Backup KHDR ======== **/
+        if (!this.isNewDr) {
+            // Need to aquire a new session
+            await this.init(1);
+            await this.loginDr();
+            khdr = {
+                '/dark/user': await this.getDarkUser(),
+                '/user/start': await this.getUserStart(),
+                '/dark/user/options': await this.getDarkUserOptions(),
+                '/dark/user/cards': await this.getDarkUserCards(),
+                '/dark/material': await this.getDarkMaterial(),
+                '/dark/material/equip': await this.getDarkMaterialEquipment(),
+                '/dark/tutorial/status': await this.getDarkTutorialStatus(),
+                '/dark/book': await this.getDarkBook(),
+                '/dark/stage': await this.getDarkStage(),
+                '/dark/stage/pve': await this.getDarkStage(),
+            };
+            khdr = cleanSaveObject(khdr);
+        }
+
+        return { khux, khdr };
     }
 }
 
