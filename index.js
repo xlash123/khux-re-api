@@ -8,11 +8,14 @@ const { decryptUri, decryptJson, decryptRaw } = require('./encoding');
 const { KHUXClient } = require('./client');
 const fs = require('fs');
 
+const test_uuid = '950f4192-f28a-469b-b602-dac828f0548a';
+
 const optDefs = [
 	{ name: 'mitm', type: Boolean },
 	{ name: 'decode', type: Boolean },
 	{ name: 'key', type: String },
 	{ name: 'client', type: Boolean },
+	{ name: 'backup', type: String },
 ];
 
 const opts = commandLineArgs(optDefs);
@@ -22,10 +25,26 @@ if (opts.mitm) {
 	console.log(opts);
 	bulkDecode(opts.key);
 } else if (opts.client) {
-	const client = new KHUXClient();
-	client.login().then(() => {
-		client.quitStage();
-	});
+	doClient();
+} else if (opts.backup) {
+	doBackup(opts.backup);
+}
+
+async function doClient() {
+	const client = new KHUXClient(test_uuid);
+	await client.init();
+	await client.loginKhux();
+	// Do stuff here
+}
+
+async function doBackup(uuid) {
+	const client = new KHUXClient(uuid);
+	await client.init();
+	await client.loginKhux()
+	const allUserData = await client.getAllUserData();
+	if (allUserData) {
+		fs.writeFileSync('user_data.json', JSON.stringify(allUserData, undefined, 2));
+	}
 }
 
 async function bulkDecode(key) {
@@ -41,26 +60,39 @@ async function bulkDecode(key) {
 		sharedKey = await ask('Enter shared key: ');
 	}
 
+	let depth = 1;
+
 	rl.on('line', (line) => {
-		let payload;
-		let rawPayload;
-		if (line.startsWith('file:')) {
-			const filename = line.substring('file:'.length);
-			line = fs.readFileSync(filename).toString().trim();
-		}
-		if (line.startsWith('v=')) {
-			payload = decryptUri(line, sharedKey);
-			rawPayload = decryptRaw(decodeURIComponent(line.substring(2)), sharedKey);
-		} else {
-			payload = decryptJson(line, sharedKey);
-			rawPayload = decryptRaw(line, sharedKey);
-		}
-		console.log({ raw: rawPayload });
 		try {
-			const parsed = JSON.parse(payload);
-			console.dir(parsed, { depth: 10 });
+			let payload;
+			let rawPayload;
+			let doDecrypt = true;
+			if (line.startsWith('depth:')) {
+				doDecrypt = false;
+				depth = parseInt(line.substring('depth:'.length));
+			} else if (line.startsWith('file:')) {
+				const filename = line.substring('file:'.length);
+				line = fs.readFileSync(filename).toString().trim();
+			}
+			
+			if (line.startsWith('v=')) {
+				payload = decryptUri(line, sharedKey);
+				rawPayload = decryptRaw(decodeURIComponent(line.substring(2)), sharedKey);
+			} else {
+				payload = decryptJson(line, sharedKey);
+				rawPayload = decryptRaw(line, sharedKey);
+			}
+			if (doDecrypt) {
+				console.log({ raw: rawPayload });
+				try {
+					const parsed = JSON.parse(payload);
+					console.dir(parsed, { depth });
+				} catch (e) {
+					console.log('Invalid');
+				}
+			}
 		} catch (e) {
-			console.log('Invalid');
+			console.error(e);
 		}
 	});
 }

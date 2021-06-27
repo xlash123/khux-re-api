@@ -2,3 +2,5 @@
 /packets
 *.pem
 read.txt
+uuid.txt
+user_data.json
