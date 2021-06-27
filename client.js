@@ -827,7 +827,7 @@ class KHUXClient {
     // Returns an object that defines all of the user's data
     async getAllUserData() {
         if (this.isNewKhux && this.isNewDr) {
-            console.log('Cannot backup data for new users. Did you enter the right UUID?');
+            console.log('Cannot backup data for new users. Did you enter the right UUID and device type?');
             return null;
         }
         let khux;
