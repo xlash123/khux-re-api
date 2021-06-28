@@ -3,7 +3,7 @@ const { gunzipSync } = require('zlib');
 const { Buffer } = require('buffer');
 const { decryptJson, encryptUri, encryptJson, decryptRaw } = require('./encoding');
 
-const DEBUG = true;
+const DEBUG = 'none'; // verbose, errors, none
 
 var host = 'api-s.sp.kingdomhearts.com';
 //var Host = '192.168.1.103';
@@ -38,7 +38,7 @@ function getNodeCookies(cookies) {
 
     return false;
 }
-
+false
 function getUsefulBody(response) {
     // if (!response || !response.body) return undefined;
     const { ret, ...newObj } = response.body;
@@ -206,14 +206,20 @@ class KHUXClient {
                         cookies,
                     };
                     this.setCommonCookies(cookies);
-                    if (DEBUG) {
+                    if (DEBUG === 'verbose') {
+                        console.dir({
+                            params,
+                            response,
+                            payload: postData,
+                        }, { depth: 10 });
+                    } else if (DEBUG === 'errors' && body?.ret?.error) {
                         console.dir({
                             params,
                             response,
                             payload: postData,
                         }, { depth: 10 });
                     } else if (body?.ret?.error) {
-                        console.log(body.ret.error);
+                        console.log(body?.ret?.error);
                     }
                     resolve(response);
                 });
@@ -755,7 +761,7 @@ class KHUXClient {
     }
 
     async getStageData() {
-        return this.performRequest('/stage/160310', 0, '\x05');
+        return this.performRequest('/stage/160310', 0, '\x06');
     }
 
     async getProudStageData() {
@@ -766,7 +772,7 @@ class KHUXClient {
         const payload = this.encryptUri({
             eventCategory,
             ...this.getSelfStatus(),
-        }, '\x04');
+        }, '\x03');
         return this.performRequest({
             path: `/stage/event?m=1&i=${this.getSavedUserId()}&${payload}`,
         });
@@ -825,7 +831,7 @@ class KHUXClient {
     }
 
     // Returns an object that defines all of the user's data
-    async getAllUserData() {
+    async getAllUserData(backupQuests = false) {
         if (this.isNewKhux && this.isNewDr) {
             console.log('Cannot backup data for new users. Did you enter the right UUID and device type?');
             return null;
@@ -866,11 +872,13 @@ class KHUXClient {
                 '/user/support': await this.getUserSupport(),
                 '/party/member/list': await this.getPartyMemberList(),
                 '/user/profile': await this.getUserProfile(),
-                '/lsi/game': await this.getLsiGames(),
-                '/stage/160310': await this.getStageData(),
-                '/stage/hard': await this.getProudStageData(),
-                '/stage/event': await this.getEventStageData(2),
+                '/lsi/game': await this.getLsiGames(),                
             };
+            if (backupQuests) {
+                khux['/stage/160310'] = await this.getStageData();
+                khux['/stage/hard'] = await this.getProudStageData();
+                khux['/stage/event'] = await this.getEventStageData(2);
+            }
             khux = cleanSaveObject(khux);
         }
 

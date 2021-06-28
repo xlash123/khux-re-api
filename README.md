@@ -11,6 +11,11 @@ npm install # Only needs to be run one
 node index.js --backup <insert uuid here> --device <number> # Don't include the <> in your command
 ```
 
+Note: If you want to backup ALL of your data (quest completion) and don't care if you get shadowbanned (no multiplayer), run this command:
+```bash
+node index.js --backup <insert uuid here> --device <number> --quests
+```
+
 Your user data will be backed up to a file called `user_data.json`. Make sure to have this handy for a potential private server in the future.
 
 ## How Does the API Work?

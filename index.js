@@ -17,6 +17,7 @@ const optDefs = [
 	{ name: 'client', type: Boolean },
 	{ name: 'backup', type: String },
 	{ name: 'device', type: String },
+	{ name: 'quests', type: Boolean },
 ];
 
 const opts = commandLineArgs(optDefs);
@@ -28,7 +29,7 @@ if (opts.mitm) {
 } else if (opts.client) {
 	doClient();
 } else if (opts.backup) {
-	doBackup(opts.backup, opts.device || 2);
+	doBackup(opts.backup, opts.device || 2, opts.quests || false);
 }
 
 async function doClient() {
@@ -38,11 +39,11 @@ async function doClient() {
 	// Do stuff here
 }
 
-async function doBackup(uuid, deviceType = 2) {
+async function doBackup(uuid, deviceType = 2, doQuests = false) {
 	const client = new KHUXClient(uuid, deviceType);
 	await client.init();
 	await client.loginKhux()
-	const allUserData = await client.getAllUserData();
+	const allUserData = await client.getAllUserData(doQuests);
 	if (allUserData) {
 		fs.writeFileSync('user_data.json', JSON.stringify(allUserData, undefined, 2));
 	}
@@ -76,14 +77,14 @@ async function bulkDecode(key) {
 				line = fs.readFileSync(filename).toString().trim();
 			}
 			
-			if (line.startsWith('v=')) {
-				payload = decryptUri(line, sharedKey);
-				rawPayload = decryptRaw(decodeURIComponent(line.substring(2)), sharedKey);
-			} else {
-				payload = decryptJson(line, sharedKey);
-				rawPayload = decryptRaw(line, sharedKey);
-			}
 			if (doDecrypt) {
+				if (line.startsWith('v=')) {
+					payload = decryptUri(line, sharedKey);
+					rawPayload = decryptRaw(decodeURIComponent(line.substring(2)), sharedKey);
+				} else {
+					payload = decryptJson(line, sharedKey);
+					rawPayload = decryptRaw(line, sharedKey);
+				}
 				console.log({ raw: rawPayload });
 				try {
 					const parsed = JSON.parse(payload);
