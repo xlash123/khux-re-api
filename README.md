@@ -6,6 +6,9 @@ This also includes a terminal client, able to connect with the real game server 
 
 ## Backup
 To backup your user data, you'll need your [UUID](/Getting%20UUID.md), [device type](/Getting%20UUID.md), and [NodeJS](https://nodejs.org/en/download/) installed to your system. Then open a terminal in the same directory as this project and enter the following commands:
+
+**NOTE**: At this current time, backing up your account will shadowban your account. This means you cannot participate in rankings.
+
 ```bash
 npm install # Only needs to be run one
 node index.js --backup <insert uuid here> --device <number> # Don't include the <> in your command
