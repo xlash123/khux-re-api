@@ -5,7 +5,7 @@ const readline = require('readline');
 
 const { launchMitm } = require('./mitm');
 const { decryptUri, decryptJson, decryptRaw } = require('./encoding');
-const { KHUXClient } = require('./client');
+const { KHUXClient, cleanSaveObject } = require('./client');
 const fs = require('fs');
 
 const test_uuid = '<uuid here>';
@@ -55,13 +55,13 @@ async function backupUsers(opts) {
 		fs.mkdirSync('public_user_profiles');
 	} catch(e) {}
 	for (let id = MIN_ID; id < MAX_ID; id++) {
-		const user = {
+		const user = cleanSaveObject({
 			'/user/profile': await client.getUserProfile(id),
 			'/pet/profile': await client.getUserProfile(id),
-		};
+		});
 		fs.writeFile(`public_user_profiles/${id}.json`, JSON.stringify(user), () => {});
 		if (id % 10 === 0) {
-			console.log(((id - MIN_ID) / (MAX_ID - MIN_ID) * 100) + '%');
+			console.log(((id - MIN_ID) / (MAX_ID - MIN_ID) * 100) + '% - ' + id);
 		}
 	}
 }

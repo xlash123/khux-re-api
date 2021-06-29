@@ -48,7 +48,6 @@ function getUsefulBody(response) {
 function cleanSaveObject(save) {
     const ret = {};
     Object.keys(save).forEach((key) => {
-        console.log(key);
         ret[key] = getUsefulBody(save[key]);
     });
     return ret;
@@ -934,4 +933,5 @@ class KHUXClient {
 
 module.exports = {
     KHUXClient,
+    cleanSaveObject,
 };
