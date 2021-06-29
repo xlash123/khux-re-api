@@ -11,7 +11,7 @@ To backup your user data, you'll need your [UUID](/Getting%20UUID.md), [device t
 
 ```bash
 npm install # Only needs to be run one
-node index.js --backup <insert uuid here> --device <number> # Don't include the <> in your command
+node index.js --backup <insert uuid here> --device <number> --os-version <os version> # Don't include the <> in your command
 ```
 
 Note: If you want to backup ALL of your data (quest completion) and don't care if you get shadowbanned (no multiplayer), run this command:

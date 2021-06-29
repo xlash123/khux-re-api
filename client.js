@@ -3,7 +3,7 @@ const { gunzipSync } = require('zlib');
 const { Buffer } = require('buffer');
 const { decryptJson, encryptUri, encryptJson, decryptRaw } = require('./encoding');
 
-const DEBUG = 'none'; // verbose, errors, none
+const DEBUG = 'verbose'; // verbose, errors, none
 
 var host = 'api-s.sp.kingdomhearts.com';
 //var Host = '192.168.1.103';
@@ -62,6 +62,7 @@ class KHUXClient {
     nodeCookies = [];
     uuid;
     deviceType;
+    systemVersion;
 
     userData;
     darkUser;
@@ -72,9 +73,10 @@ class KHUXClient {
     isNewKhux = true;
     isNewDr = true;
 
-    constructor(uuid, deviceType = 2) {
+    constructor(uuid, deviceType = 2, systemVersion = '25') {
         this.uuid = uuid;
-        this.deviceType = deviceType;
+        this.deviceType = Number(deviceType);
+        this.systemVersion = systemVersion.toString();
     }
 
     getSavedUserId() {
@@ -87,11 +89,11 @@ class KHUXClient {
     
     packCookies() {
         const ret = [];
-        if (this.weirdNameCookie) {
-            ret.push('nAJW839RbEHrfm6M=' + this.weirdNameCookie)
-        }
         if (this.cookieUserSessionCode) {
             ret.push('cookie_user_session_code=' + this.cookieUserSessionCode);
+        }
+        if (this.weirdNameCookie) {
+            ret.push('nAJW839RbEHrfm6M=' + this.weirdNameCookie)
         }
         return ret.concat(this.nodeCookies);
     }
@@ -119,20 +121,20 @@ class KHUXClient {
         return {
             ruv: Math.floor(Math.random() * 10000000000),
             deviceType: this.deviceType,
-            systemVersion: '30',
+            systemVersion: this.systemVersion,
             appVersion: '4.3.1'
         }
     }
 
-    encryptUri(obj, pad = '\x04') {
-        return encryptUri(obj, this.sharedSecurityKey, pad);
+    encryptUri(obj) {
+        return encryptUri(obj, this.sharedSecurityKey);
     }
 
     encryptJson(obj) {
         return encryptJson(obj, this.sharedSecurityKey);
     }
 
-    async performRequest(paramsObj, postData, pad = '\x04') {
+    async performRequest(paramsObj, postData) {
         // Allow for default parameters and headers
         const params = {
             host,
@@ -145,15 +147,17 @@ class KHUXClient {
             'accept-encoding': 'deflate, gzip',
             cookie: this.packCookies(),
         };
-        if (this.nativeSessionId) {
-            headers['x-sqex-hole-nsid'] = this.nativeSessionId,
-            headers['x-sqex-hole-retry'] = '0';
-        }
         if (typeof paramsObj === 'object') {
             Object.assign(params, paramsObj);
         }
         if (params.method !== 'GET') {
             headers['content-type'] = 'application/x-www-form-urlencoded;charset=UTF8';
+        }
+        if (this.nativeSessionId) {
+            headers['x-sqex-hole-nsid'] = this.nativeSessionId,
+            headers['x-sqex-hole-retry'] = '0';
+        }
+        if (postData) {
             headers['content-length'] = postData.length;
         }
         if (paramsObj?.headers) {
@@ -163,7 +167,7 @@ class KHUXClient {
             const m = this.isLoggedInKhux ? 1 : (this.isLoggedInDr ? 2 : 0);
             const userId = this.isLoggedInKhux ? this.getSavedUserId() : (this.isLoggedInDr ? this.getSavedDarkUserId() : '');
             // Set path if paramsObj is a string and add normal flair
-            params.path = `${paramsObj}?m=${m}&${userId ? `i=${userId}` : ''}&${this.encryptUri(this.getSelfStatus(), pad)}`;
+            params.path = `${paramsObj}?m=${m}&${userId ? `i=${userId}` : ''}&${this.encryptUri(this.getSelfStatus())}`;
         }
         Object.assign(params.headers, headers);
 
@@ -299,9 +303,9 @@ class KHUXClient {
         this.nativeSessionId = sessionRes.body.nativeSessionId;
 
         const loginData = this.encryptUri({
-            ...this.getSelfStatus(),
             length: 19904060,
             digest: '3a4fee0d5cb05dd416b4bbc8cd4c8d57',
+            ...this.getSelfStatus(),
         });
 
         const loginRes = await this.performRequest({
@@ -368,7 +372,7 @@ class KHUXClient {
     }
 
     async loginDr() {
-        const payload = this.encryptUri(this.getSelfStatus(), '\x06');
+        const payload = this.encryptUri(this.getSelfStatus());
         return this.performRequest({
             method: 'POST',
             path:'/dark/login?m=2',
@@ -385,11 +389,38 @@ class KHUXClient {
         }, userAwakenBody);
 
         const userRes = await this.getUserData();
-        const userStartRes = await this.getUserStart();            
+        const userStartRes = await this.getUserStart();
+        await this.getUserChat();
+        await this.getParty();
+        await this.getJewels();
+        await this.getUserShop();
+        await this.getUserOptions();
+        await this.getPetProfile();
+        await this.getPetCoordinateParts();
+        await this.getPetCoordinateAll();
+        await this.getTutorialStatus();
+        await this.getUserMission();
+        await this.deletePvpLock();
+        await this.putPassiveList();
+        await this.putEmblemList();
+        await this.getUserSphere();
+        await this.getUserMedals();
+        await this.getUserSkill();
+        await this.getUserMaterial();
+        await this.getUserKeyblade();
+        await this.getUserDeck();
+        await this.getKeybladeSubslot();
+        await this.getUserAvatarAll();
+        await this.getUserAvatarParts();
+        await this.getUserTitle();
+        await this.getUserLink();
+        await this.getUserSupport();
+        await this.getPartyMemberList();
+        await this.putPlaytimeBp();
     }
 
     async getTutorialStatus() {
-        return this.performRequest('/tutorial/status', 0, '\x05');
+        return this.performRequest('/tutorial/status', 0);
     }
 
     async startStage() {
@@ -399,7 +430,7 @@ class KHUXClient {
             userKeybladeId: 1789171,
             isSteal: 1,
             ...this.getSelfStatus(),
-        }, '\x0B');
+        });
         return this.performRequest({
             host,
             port,
@@ -468,11 +499,22 @@ class KHUXClient {
             },
             missionConditions: { defeated: { '5': 2, '11': 1, '141': 3, '10011': 1 } },
             ...this.getSelfStatus(),
-        }, '\x02');
+        });
+    }
+
+    async putPlaytimeBp(elapsedTime = 0) {
+        const payload = this.encryptUri({
+            elapsedTime,
+            ...this.getSelfStatus(),
+        });
+        return this.performRequest({
+            method: 'PUT',
+            path: `/playtime/bp?m=1`,
+        }, payload);
     }
 
     async quitStage() {
-        const stageBody = this.encryptUri(this.getSelfStatus(), '\x06');
+        const stageBody = this.encryptUri(this.getSelfStatus());
         return this.performRequest({
             host,
             port,
@@ -576,7 +618,7 @@ class KHUXClient {
             revision: 0,
             commonRevision: 0,
             ...this.getSelfStatus(),
-        }, '\x05'); // This padding character is extremely necessary
+        });
         return this.performRequest({
             host,
             port,
@@ -610,11 +652,11 @@ class KHUXClient {
     }
 
     async getJewels() {
-        return this.performRequest('/user/stone', 0, '\x05');
+        return this.performRequest('/user/stone', 0);
     }
 
     async getUserData(updateUserData = true) {
-        const userDataRes = await this.performRequest('/user', 0, '\x06');
+        const userDataRes = await this.performRequest('/user', 0);
         
         if (updateUserData) {
             // Track userData for future requests
@@ -625,47 +667,57 @@ class KHUXClient {
 
     async getUserStart() {
         // There is more data included in v= body, but it's encoded
-        return this.performRequest('/user/start', 0, '\t');    
+        return this.performRequest('/user/start', 0);    
     }
 
     async getUserChat() {
-        return this.performRequest('/user/chat', 0, '\x06');
+        return this.performRequest('/user/chat', 0);
     }
 
     async getUserMedals() {
-        return this.performRequest('/user/medal', 0, '\x05');
+        return this.performRequest('/user/medal', 0);
     }
 
     async getParty() {
-        return this.performRequest('/party', 0, '\x06');
+        return this.performRequest('/party', 0);
     }
 
     async getUserShop() {
-        return this.performRequest('/user/shop', 0, '\x07');
+        return this.performRequest('/user/shop', 0);
     }
 
     async getUserOptions() {
-        return this.performRequest('/user/option', 0, '\x06');
+        return this.performRequest('/user/option', 0);
     }
 
-    async getPetProfile() {
-        return this.performRequest('/pet/profile', 0, '\b');
+    async getPetProfile(userId) {
+        if (userId) {
+            const payload = this.encryptUri({
+                userId: userId || this.getSavedUserId(),
+                ...this.getSelfStatus(),
+            });
+            return this.performRequest({
+                path: `/pet/profile?m=1&i=${this.getSavedUserId()}&${payload}`,
+            });
+        } else {
+            return this.performRequest('/pet/profile', 0);
+        }
     }
 
     async getPetCoordinateParts() {
-        return this.performRequest('/pet/coordinate/parts', 0, '\x05');
+        return this.performRequest('/pet/coordinate/parts', 0);
     }
 
     async getPetCoordinateAll() {
-        return this.performRequest('/pet/coordinate/all', 0, '\x06');
+        return this.performRequest('/pet/coordinate/all', 0);
     }
 
     async getUserMission() {
-        return this.performRequest('/user/mission', 0, '\x06');
+        return this.performRequest('/user/mission', 0);
     }
 
     async deletePvpLock() {
-        const payload = this.encryptUri(this.getSelfStatus(), '\x06');
+        const payload = this.encryptUri(this.getSelfStatus());
         return this.performRequest({
             method: 'DELETE',
             path: `/pvp/lock?m=1&i=${this.getSavedUserId()}`,
@@ -676,7 +728,7 @@ class KHUXClient {
         const payload = this.encryptUri({
             isList: 1,
             ...this.getSelfStatus(),
-        }, '\n');
+        });
         return this.performRequest({
             method: 'PUT',
             path: `/passive/list?m=1&i=${this.getSavedUserId()}`,
@@ -684,7 +736,7 @@ class KHUXClient {
     }
 
     async putEmblemList() {
-        const payload = this.encryptUri(this.getSelfStatus(), '\x06');
+        const payload = this.encryptUri(this.getSelfStatus());
         return this.performRequest({
             method: 'PUT',
             path: `/emblem/list?m=1&i=${this.getSavedUserId()}`,
@@ -692,47 +744,47 @@ class KHUXClient {
     }
 
     async getUserSphere() {
-        return this.performRequest('/user/sphere', 0, '\x05');
+        return this.performRequest('/user/sphere', 0);
     }
 
     async getUserSkill() {
-        return this.performRequest('/user/skill', 0, '\x05');
+        return this.performRequest('/user/skill', 0);
     }
 
     async getUserMaterial() {
-        return this.performRequest('/user/material', 0, '\x05');
+        return this.performRequest('/user/material', 0);
     }
 
     async getUserKeyblade() {
-        return this.performRequest('/user/keyblade', 0, '\x05');
+        return this.performRequest('/user/keyblade', 0);
     }
 
     async getUserDeck() {
-        return this.performRequest('/user/deck', 0, '\x05');
+        return this.performRequest('/user/deck', 0);
     }
 
     async getKeybladeSubslot() {
-        return this.performRequest('/keyblade/subslot', 0, '\x05');
+        return this.performRequest('/keyblade/subslot', 0);
     }
 
     async getUserAvatarAll() {
-        return this.performRequest('/user/avatar/all', 0, '\x06');
+        return this.performRequest('/user/avatar/all', 0);
     }
 
     async getUserAvatarParts() {
-        return this.performRequest('/user/avatar/parts', 0, '\x05');
+        return this.performRequest('/user/avatar/parts', 0);
     }
 
     async getUserTitle() {
-        return this.performRequest('/user/title', 0, '\x06');
+        return this.performRequest('/user/title', 0);
     }
 
     async getUserLink() {
-        return this.performRequest('/user/link', 0, '\x06');
+        return this.performRequest('/user/link', 0);
     }
 
     async getUserSupport() {
-        return this.performRequest('/user/support', 0, '\x06');
+        return this.performRequest('/user/support', 0);
     }
 
     async getPartyMemberList() {
@@ -740,76 +792,77 @@ class KHUXClient {
             getDetail: 1,
             platformType: 1,
             ...this.getSelfStatus(),
-        }, '\x07');
+        });
         return this.performRequest({
-            path: `/party/member/list?m=1i=${this.getSavedUserId()}&${payload}`,
+            path: `/party/member/list?m=1&i=${this.getSavedUserId()}&${payload}`,
         });
     }
 
     async getUserProfile(userId) {
         const payload = this.encryptUri({
-            userId,
+            userId: userId || this.getSavedUserId(),
+            platformType: 1,
             ...this.getSelfStatus(),
-        }, '\x06');
+        });
         return this.performRequest({
-            path: `/user/profile?m=1i=${this.getSavedUserId()}&${payload}`,
-        })
+            path: `/user/profile?m=1&i=${this.getSavedUserId()}&${payload}`,
+        });
     }
 
     async getLsiGames() {
-        return this.performRequest('/lsi/game', 0, '\x05');
+        return this.performRequest('/lsi/game', 0);
     }
 
     async getStageData() {
-        return this.performRequest('/stage/160310', 0, '\x06');
+        return this.performRequest('/stage/160310', 0);
     }
 
     async getProudStageData() {
-        return this.performRequest('/stage/hard', 0, '\x05');
+        return this.performRequest('/stage/hard', 0);
     }
 
     async getEventStageData(eventCategory) {
         const payload = this.encryptUri({
             eventCategory,
             ...this.getSelfStatus(),
-        }, '\x03');
+        });
         return this.performRequest({
             path: `/stage/event?m=1&i=${this.getSavedUserId()}&${payload}`,
         });
     }
 
     async getDarkUser() {
-        const darkUserRes = await this.performRequest('/dark/user', 0, '\x06');
+        const darkUserRes = await this.performRequest('/dark/user', 0);
         const { ret, ...darkUser } = darkUserRes.body;
         this.darkUser = darkUser;
         return darkUserRes;
     }
 
     async getDarkUserOptions() {
-        return this.performRequest('/dark/user/option', 0, '\x05');
+        return this.performRequest('/dark/user/option', 0);
     }
 
     async getDarkUserCards() {
-        return this.performRequest('/dark/user/card', 0, '\x05');
+        return this.performRequest('/dark/user/card', 0);
     }
 
     async getDarkMaterial() {
-        return this.performRequest('/dark/material', 0, '\x06');
+        return this.performRequest('/dark/material', 0);
     }
 
     async getDarkMaterialEquipment() {
-        return this.performRequest('/dark/material/equip', 0, '\x05');
+        return this.performRequest('/dark/material/equip', 0);
     }
 
     async getDarkTutorialStatus() {
-        return this.performRequest('/dark/tutorial/status', 0, '\x05');
+        return this.performRequest('/dark/tutorial/status', 0);
     }
 
     async getDarkBook() {
         const payload = this.encryptUri({
             notUpdate: 1,
             ...this.getSelfStatus(),
-        }, '\b');
+        });
         return this.performRequest({
             method: 'PUT',
             path: `/dark/book?m=2i=${this.getSavedDarkUserId()}`,
@@ -820,14 +873,14 @@ class KHUXClient {
         const payload = this.encryptUri({
             notUpdate: 1,
             ...this.getSelfStatus(),
-        }, '\x07');
+        });
         return this.performRequest({
             path: `/dark/stage?m=2&i=${this.getSavedDarkUserId()}&${payload}`
         });
     }
 
     async getDarkStagePve() {
-        return this.performRequest('/dark/stage/pve', 0, '\x05');
+        return this.performRequest('/dark/stage/pve', 0);
     }
 
     // Returns an object that defines all of the user's data

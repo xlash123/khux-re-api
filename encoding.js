@@ -1,6 +1,7 @@
 const aes = require('aes-js');
 const { Buffer } = require('buffer');
 const { Base64 } = require('js-base64');
+const { pad } = require('pkcs7');
 
 function decryptRaw(encodedB64, secretKey) {
 	const keyBytes = Buffer.from(secretKey);
@@ -27,26 +28,18 @@ function decryptUri(encoded, secretKey) {
 }
 
 // Encrypts a JSON payload to go in the url
-function encryptUri(obj, secretKey, pad = '\x04') {
+function encryptUri(obj, secretKey) {
 	return 'v=' + encodeURIComponent(encryptJson(obj, secretKey, pad));
 }
 
 // Returns an encrypted version of this object
-function encryptJson(obj, secretKey, padChar = '\x00') {
-	let jsonStr = aes.utils.utf8.toBytes(JSON.stringify(obj));
-	const modLen = jsonStr.length % 16;
-	// Pad out string to multiple of 16 in order to encode
-	if (modLen > 0) {
-		const padding = aes.utils.utf8.toBytes(padChar.repeat(16 - modLen));
-		const newArr = new Uint8Array(jsonStr.length + padding.length);
-		newArr.set(jsonStr);
-		newArr.set(padding, jsonStr.length);
-		jsonStr = newArr;
-	}
+function encryptJson(obj, secretKey) {
+	const jsonStr = aes.utils.utf8.toBytes(JSON.stringify(obj));
+	const paddedStr = pad(Buffer.from(jsonStr));
 	// Encrypt
 	const keyBytes = Buffer.from(secretKey);
 	const aesCbc = new aes.ModeOfOperation.cbc(keyBytes);
-	const encJson = aesCbc.encrypt(jsonStr);
+	const encJson = aesCbc.encrypt(paddedStr);
 	// Convert to b64
 	return Base64.fromUint8Array(encJson);
 }

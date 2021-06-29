@@ -8,7 +8,7 @@ const { decryptUri, decryptJson, decryptRaw } = require('./encoding');
 const { KHUXClient } = require('./client');
 const fs = require('fs');
 
-const test_uuid = '950f4192-f28a-469b-b602-dac828f0548a';
+const test_uuid = '<uuid here>';
 
 const optDefs = [
 	{ name: 'mitm', type: Boolean },
@@ -18,6 +18,7 @@ const optDefs = [
 	{ name: 'backup', type: String },
 	{ name: 'device', type: String },
 	{ name: 'quests', type: Boolean },
+	{ name: 'os-version', type: String },
 ];
 
 const opts = commandLineArgs(optDefs);
@@ -29,18 +30,19 @@ if (opts.mitm) {
 } else if (opts.client) {
 	doClient();
 } else if (opts.backup) {
-	doBackup(opts.backup, opts.device || 2, opts.quests || false);
+	doBackup(opts.backup, opts.device || 2, opts['os-version'] || 25, opts.quests || false);
 }
 
 async function doClient() {
-	const client = new KHUXClient(test_uuid);
+	const client = new KHUXClient(test_uuid, 2, '30');
 	await client.init();
-	await client.loginKhux();
+	await client.loginKhux(true);
+	console.dir(await client.getUserProfile(420), { depth: 4 });
 	// Do stuff here
 }
 
-async function doBackup(uuid, deviceType = 2, doQuests = false) {
-	const client = new KHUXClient(uuid, deviceType);
+async function doBackup(uuid, deviceType = 2, systemVersion = '25', doQuests = false) {
+	const client = new KHUXClient(uuid, deviceType, systemVersion);
 	await client.init();
 	await client.loginKhux()
 	const allUserData = await client.getAllUserData(doQuests);
