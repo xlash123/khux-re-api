@@ -54,7 +54,7 @@ async function backupUsers(opts) {
 	try {
 		fs.mkdirSync('public_user_profiles');
 	} catch(e) {}
-	for (let id = MIN_ID; id < MAX_ID; id++) {
+	for (let id = MIN_ID; id < MAX_ID + 1; id++) {
 		const user = cleanSaveObject({
 			'/user/profile': await client.getUserProfile(id),
 			'/pet/profile': await client.getUserProfile(id),
