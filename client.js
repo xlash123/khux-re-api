@@ -3,7 +3,7 @@ const { gunzipSync } = require('zlib');
 const { Buffer } = require('buffer');
 const { decryptJson, encryptUri, encryptJson, decryptRaw } = require('./encoding');
 
-const DEBUG = 'verbose'; // verbose, errors, none
+const DEBUG = 'none'; // verbose, errors, none
 
 var host = 'api-s.sp.kingdomhearts.com';
 //var Host = '192.168.1.103';
@@ -390,33 +390,6 @@ class KHUXClient {
 
         const userRes = await this.getUserData();
         const userStartRes = await this.getUserStart();
-        await this.getUserChat();
-        await this.getParty();
-        await this.getJewels();
-        await this.getUserShop();
-        await this.getUserOptions();
-        await this.getPetProfile();
-        await this.getPetCoordinateParts();
-        await this.getPetCoordinateAll();
-        await this.getTutorialStatus();
-        await this.getUserMission();
-        await this.deletePvpLock();
-        await this.putPassiveList();
-        await this.putEmblemList();
-        await this.getUserSphere();
-        await this.getUserMedals();
-        await this.getUserSkill();
-        await this.getUserMaterial();
-        await this.getUserKeyblade();
-        await this.getUserDeck();
-        await this.getKeybladeSubslot();
-        await this.getUserAvatarAll();
-        await this.getUserAvatarParts();
-        await this.getUserTitle();
-        await this.getUserLink();
-        await this.getUserSupport();
-        await this.getPartyMemberList();
-        await this.putPlaytimeBp();
     }
 
     async getTutorialStatus() {

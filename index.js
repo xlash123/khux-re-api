@@ -19,6 +19,10 @@ const optDefs = [
 	{ name: 'device', type: String },
 	{ name: 'quests', type: Boolean },
 	{ name: 'os-version', type: String },
+	{ name: 'backup-users', type: Boolean },
+	{ name: 'min', type: Number },
+	{ name: 'max', type: Number },
+	{ name: 'uuid', type: String },
 ];
 
 const opts = commandLineArgs(optDefs);
@@ -31,14 +35,35 @@ if (opts.mitm) {
 	doClient();
 } else if (opts.backup) {
 	doBackup(opts.backup, opts.device || 2, opts['os-version'] || 25, opts.quests || false);
+} else if (opts['backup-users']) {
+	backupUsers(opts);
 }
 
 async function doClient() {
 	const client = new KHUXClient(test_uuid, 2, '30');
 	await client.init();
 	await client.loginKhux(true);
-	console.dir(await client.getUserProfile(420), { depth: 4 });
-	// Do stuff here
+}
+
+async function backupUsers(opts) {
+	const client = new KHUXClient(opts.uuid, opts.device || 2, opts['os-version'] || '30');
+	await client.init();
+	await client.loginKhux(true);
+	const MIN_ID = opts.min; // Put min id here
+	const MAX_ID = opts.max; // Put max ID here
+	try {
+		fs.mkdirSync('public_user_profiles');
+	} catch(e) {}
+	for (let id = MIN_ID; id < MAX_ID; id++) {
+		const user = {
+			'/user/profile': await client.getUserProfile(id),
+			'/pet/profile': await client.getUserProfile(id),
+		};
+		fs.writeFile(`public_user_profiles/${id}.json`, JSON.stringify(user), () => {});
+		if (id % 10 === 0) {
+			console.log(((id - MIN_ID) / (MAX_ID - MIN_ID) * 100) + '%');
+		}
+	}
 }
 
 async function doBackup(uuid, deviceType = 2, systemVersion = '25', doQuests = false) {
